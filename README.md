@@ -43,7 +43,24 @@ nix shell github:petohorvath/nixos-shields#nix
 nixos-shields.lib.importShield [ ./master-ids/yubikey-1.pub ] ./shields/beta.nix.age
 ```
 
-Decrypted plaintext is cached per user under `/var/tmp/nixos-shields-<uid>`, keyed by the file's content hash; `NIXOS_SHIELDS_CACHE_DIR` overrides the location.
+## Decrypt cache
+
+Decrypted shields are kept in a per-user directory so that an unchanged shield is not decrypted, and a hardware identity not prompted, on every evaluation. Each entry is keyed by the shield file's content hash and base name, so a changed file gets a new entry and the old one stays until the directory is cleared. The directory holds plaintext: it is created with mode 0700 and refused when owned by another user, but the values are readable to anyone with the account.
+
+By default the decrypt cache lives at `/var/tmp/nixos-shields-<uid>`. `NIXOS_SHIELDS_CACHE_DIR` moves it, for a tmpfs or a sandbox:
+
+```sh
+NIXOS_SHIELDS_CACHE_DIR=/run/user/1000/nixos-shields \
+  nix build .#nixosConfigurations.beta.config.system.build.toplevel
+```
+
+To clear the decrypt cache, remove the directory:
+
+```sh
+rm -rf "${NIXOS_SHIELDS_CACHE_DIR:-/var/tmp/nixos-shields-$UID}"
+```
+
+The `/var/tmp` default is a provisional choice: it survives reboots, which is what keeps a hardware identity quiet across sessions, at the cost of plaintext outliving the session. It may be revisited; only the override and this note ship for now.
 
 ## Checks
 
@@ -52,3 +69,5 @@ nix flake check
 ```
 
 The integration check runs the wrapped Nix inside the build sandbox against a fixture encrypted to a throwaway key generated at check time, and doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+
+The decrypt cache check drives the cache script directly with a throwaway master identity and a counting wrapper around `rage` in place of the real one. It asserts that a miss decrypts, a hit does not (a copy of the same file elsewhere included), a changed file gets its own entry, `--print-out-path` names the entry, and the override moves the directory.
