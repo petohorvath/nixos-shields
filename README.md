@@ -14,7 +14,7 @@ A shield is a Nix expression stored age-encrypted in git and decrypted when Nix 
 
 The shield builtin is provided by [nix-plugins](https://github.com/shlevy/nix-plugins), which must be compiled against the exact Nix that loads it. The kit builds it against the Nix 2.34 series from nixpkgs (`nixVersions.nix_2_34`). A compatibility patch, `packages/nix-plugins/nix-2.34.patch`, is carried in-kit until an upstream nix-plugins release builds against that Nix. A newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
 
-Only x86_64-linux is exercised by the checks; outputs are declared for aarch64-linux, x86_64-darwin and aarch64-darwin as well.
+Only x86_64-linux is exercised by the checks; outputs are declared for aarch64-linux and aarch64-darwin as well. x86_64-darwin is not declared, as nixpkgs dropped it in 26.11.
 
 ## Wrapped Nix
 
