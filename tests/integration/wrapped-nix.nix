@@ -52,16 +52,7 @@ runCommand "nixos-shields-integration"
 
     fail() { echo "FAIL: $*" >&2; exit 1; }
 
-    # A path already in the sandbox, made known to the store as it is.
-    # --register-validity would take ownership of it; --load-db only
-    # records what it is told, so the NAR hash and size are computed here.
-    register() {
-      local path=$1 hash size
-      hash="sha256:$(nix-hash --type sha256 --base32 "$path")"
-      size=$(nix-store --store "$store" --dump "$path" | wc -c)
-      printf '%s\n%s\n%s\n\n0\n' "$path" "$hash" "$size" \
-        | nix-store --store "$store" --load-db
-    }
+    ${builtins.readFile ./register-store-path.sh}
 
     nixEval() {
       nix eval --store "$store" --json \
@@ -124,10 +115,10 @@ runCommand "nixos-shields-integration"
     # The example consumer, evaluated as a flake with its inputs
     # pointed at the sandbox's copies. Pure evaluation reads store
     # paths through the store, so the builtins file must be valid too.
-    register "$extraBuiltinsFile"
-    register "$nixpkgs"
-    register "$flakeParts"
-    register "$kit"
+    registerStorePath "$store" "$extraBuiltinsFile"
+    registerStorePath "$store" "$nixpkgs"
+    registerStorePath "$store" "$flakeParts"
+    registerStorePath "$store" "$kit"
 
     evalExample() {
       nixEval --no-write-lock-file \

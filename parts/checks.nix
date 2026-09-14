@@ -20,6 +20,13 @@ in
     { config, pkgs, ... }:
     {
       checks = {
+        cli = pkgs.callPackage ../tests/integration/cli.nix {
+          inherit (inputs) nixpkgs;
+          inherit kit;
+          inherit (config.packages) nix nixos-shields;
+          flakeParts = inputs.flake-parts;
+          example = ../examples/consumer;
+        };
         integration = pkgs.callPackage ../tests/integration/wrapped-nix.nix {
           inherit (inputs) nixpkgs;
           inherit kit;

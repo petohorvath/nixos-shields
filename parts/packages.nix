@@ -11,6 +11,7 @@
         nix-plugins = nix.plugins;
         extra-builtins = nix.extraBuiltinsFile;
         decrypt = pkgs.callPackage ../packages/decrypt { };
+        nixos-shields = pkgs.callPackage ../packages/cli { inherit nix; };
       };
     };
 }

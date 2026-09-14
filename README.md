@@ -170,6 +170,38 @@ shields = nixos-shields.lib.mkManifest {
 
 Only `self` is required; `masterIdentities` defaults to `[ ]`, and `files` and `configurations` to `{ }`. Configuration-scoped files are taken from each configuration's `config.age.shields.files`.
 
+## Command-line tool
+
+The `nixos-shields` package is available on each declared system:
+
+```sh
+nix shell github:petohorvath/nixos-shields#nixos-shields
+```
+
+Run it in a consumer flake directory, or pass `--flake <directory>` before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo`, `path:...`, and directories inside `/nix/store` are refused. The tool evaluates the `shields` manifest once per command and resolves its file locations against that checkout.
+
+An **address** is a bare name for a flake-scoped shield (`shared`), or `<configuration>:<name>` for a configuration-scoped shield (`alpha:facts`). Names and file locations come from the manifest; declare a new address in the flake before editing it.
+
+```sh
+nixos-shields list
+nixos-shields list --json
+nixos-shields --flake ../fleet list --configuration alpha
+nixos-shields list --configuration alpha --json
+EDITOR=vim nixos-shields edit shared
+EDITOR='code --wait' nixos-shields edit alpha:facts
+nixos-shields rekey
+nixos-shields rekey --identity /path/to/previous-identity.txt
+nixos-shields clean
+```
+
+`list` groups shields by scope, showing each address, file location, `exists` or `missing` status, and totals. `--configuration` includes only that configuration's shields. JSON has `files` and `configurations` groups matching the manifest; each file becomes `{"file":"shields/alpha.nix.age","status":"exists"}`. Its `totals` object contains `total`, `exists`, and `missing` counts. Listing does not decrypt shields, so a missing file can still be listed.
+
+`edit` decrypts into a private temporary directory outside the checkout, runs `$EDITOR` as a Bash command with the plaintext file appended, then removes the directory on exit. Set the editor to wait until editing finishes. An unchanged edit leaves the shield file byte-identical. A changed edit encrypts to every master identity in the manifest and replaces the shield file only after encryption succeeds. A declared file that does not exist starts from `{}` and is created even when the editor leaves that empty expression unchanged. A failed editor leaves the shield file untouched.
+
+`rekey` decrypts every shield using `--identity` (a file relative to your current directory or an absolute path), defaulting to the first master identity in the manifest, and encrypts to every current master identity. To rotate identities, change the declared list to the new identities, keep an old identity available, and pass it with `--identity`. All declared shield files must exist. The old identity loses access only when it is no longer in the declared list; it can still decrypt earlier versions in git history.
+
+`clean` removes the current user's decrypt cache, honouring `NIXOS_SHIELDS_CACHE_DIR`. It works outside a flake and does not evaluate a manifest.
+
 ## Example consumer
 
 `examples/consumer` uses flake-parts with one flake-scoped shield and two configurations: `alpha` decrypts its configuration-scoped shield, and `beta` declares a shield file that does not exist. Both use the pre-configured NixOS module and read the shared shield's domain. The committed throwaway identity protects nothing and is labelled as such in the example's README. That README also shows how to evaluate the example against a checkout of the kit.
@@ -185,10 +217,10 @@ NIXOS_SHIELDS_CACHE_DIR=/run/user/1000/nixos-shields \
   nix build .#nixosConfigurations.beta.config.system.build.toplevel
 ```
 
-To clear the decrypt cache, remove the directory:
+To clear the decrypt cache:
 
 ```sh
-rm -rf "${NIXOS_SHIELDS_CACHE_DIR:-/var/tmp/nixos-shields-$UID}"
+nixos-shields clean
 ```
 
 The `/var/tmp` default is a provisional choice: it survives reboots, which is what keeps a hardware identity quiet across sessions, at the cost of plaintext outliving the session. It may be revisited; only the override and this note ship for now.
@@ -200,6 +232,8 @@ nix flake check
 ```
 
 The integration check runs the wrapped Nix inside the build sandbox. It evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, including through a consumer's combined extra-builtins file supplied to `lib.mkNix`. It then evaluates the example consumer, asserting the manifest's relative locations, flake-scoped values, `alpha`'s configuration-scoped values, and that `beta` fails naming its missing file. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+
+The command-line check copies the example into a writable directory and drives the packaged tool. It covers text and JSON listings, configuration filtering, local directory selection, unchanged and changed edits, creating a missing shield, editor failure and temporary-file cleanup, encryption to all master identities, rotation to a second identity verified through wrapped Nix, and decrypt-cache cleanup.
 
 The NixOS module check drives the option tree through `evalModules` without the plugin. It covers types, defaults, `values` being read-only, `dir` being required when referenced, and the failures a missing file or an empty identity list produce.
 
