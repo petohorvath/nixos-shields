@@ -27,9 +27,21 @@ in
           flakeParts = inputs.flake-parts;
           libDir = ../lib;
           example = ../examples/consumer;
+          composedNix = (import ../lib).mkNix {
+            inherit pkgs;
+            extraBuiltinsFile = pkgs.writeText "consumer-extra-builtins.nix" ''
+              args:
+              (import ${config.packages.nix.extraBuiltinsFile} args) // {
+                consumerAnswer = 42;
+              }
+            '';
+          };
         };
         decrypt-cache = pkgs.callPackage ../tests/unit/decrypt-cache.nix { };
         nixos-module = pkgs.callPackage ../tests/unit/nixos-module.nix { };
+        flake-module = pkgs.callPackage ../tests/unit/flake-module.nix {
+          flakeParts = inputs.flake-parts;
+        };
       };
     };
 }

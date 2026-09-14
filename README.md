@@ -35,6 +35,28 @@ A ready-made set with defaults:
 nix shell github:petohorvath/nixos-shields#nix
 ```
 
+### Composing extra builtins
+
+Nix has one `extra-builtins-file` setting. Build the kit's file, import it with the arguments supplied by nix-plugins, and merge your own builtins into the returned attribute set. Hand that combined file to `lib.mkNix`:
+
+```nix
+let
+  kitBuiltins = nixos-shields.lib.mkExtraBuiltinsFile { inherit pkgs; };
+  combinedBuiltins = pkgs.writeText "extra-builtins.nix" ''
+    args:
+    (import ${kitBuiltins} args) // {
+      consumerAnswer = 42;
+    }
+  '';
+in
+nixos-shields.lib.mkNix {
+  inherit pkgs;
+  extraBuiltinsFile = combinedBuiltins;
+}
+```
+
+This exposes both `builtins.extraBuiltins.importShield` and `builtins.extraBuiltins.consumerAnswer`. Use distinct names for your additions so they do not replace the kit's builtin.
+
 ## Importing a shield
 
 `lib.importShield` takes the master identity list and the shield file and returns the decrypted value. It fails with a message naming the file when the file does not exist, and with an explicit message when the identity list is empty.
@@ -80,9 +102,77 @@ Minimal wiring, with each configuration reading `<dir>/<name>.nix.age`:
 
 Reading a value needs the wrapped Nix, so the builtin is loaded; without it evaluation fails naming `lib.mkNix`.
 
+## flake-parts module
+
+Import `nixos-shields.flakeModule` in a flake-parts flake to declare flake-scoped shields and share defaults with configurations. The module uses the libraries supplied by the consumer's flake-parts; it introduces no additional flake input.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `shields.dir` | path | none | Shield directory, passed to the pre-configured NixOS module. |
+| `shields.masterIdentities` | list of paths | `[ ]` | Identities used for flake-scoped shields and as configuration defaults. |
+| `shields.files` | attribute set of paths | `{ }` | Flake-scoped shield files by name. |
+| `shields.values` | attribute set, read-only | derived | Decrypted flake-scoped values, read lazily before any configuration evaluates. |
+| `shields.configurations` | attribute set of evaluated configurations | `config.flake.nixosConfigurations` | Configurations whose shield files enter the manifest. Override when your configurations live elsewhere. |
+| `shields.nixosModule` | module, read-only | derived | The default NixOS module with directory and identities applied using `mkDefault`. Ordinary configuration assignments override them. |
+
+Inside the module passed to `flake-parts.lib.mkFlake`:
+
+```nix
+{ config, ... }:
+{
+  imports = [ nixos-shields.flakeModule ];
+  shields = {
+    dir = ./shields;
+    masterIdentities = [ ./master-identities/yubikey-1.txt ];
+    files.shared = ./shields/shared.nix.age;
+  };
+
+  flake.sharedShield = config.shields.values.shared;
+  flake.nixosConfigurations.alpha = nixpkgs.lib.nixosSystem {
+    modules = [
+      config.shields.nixosModule
+      ({ config, ... }: {
+        age.shields.files.facts = config.age.shields.dir + "/alpha.nix.age";
+        # The configuration's other NixOS settings go here.
+      })
+    ];
+  };
+}
+```
+
+## Manifest
+
+The flake-parts module publishes `shields` as a flake output. It lists declarations without decrypting values or requiring the shield files to exist. Every location is a string relative to the consumer's flake root; paths outside that root fail with a message naming the path. Configurations without the shields module appear with empty `files`.
+
+For the example consumer, `nix eval --json .#shields` returns:
+
+```json
+{
+  "masterIdentities": ["master-identities/throwaway.txt"],
+  "files": {"shared": "shields/shared.nix.age"},
+  "configurations": {
+    "alpha": {"files": {"facts": "shields/alpha.nix.age"}},
+    "beta": {"files": {"facts": "shields/beta.nix.age"}}
+  }
+}
+```
+
+Plain flakes can publish exactly the same manifest using `lib.mkManifest`, with no flake-parts dependency:
+
+```nix
+shields = nixos-shields.lib.mkManifest {
+  inherit self;
+  masterIdentities = [ ./master-identities/yubikey-1.txt ];
+  files.shared = ./shields/shared.nix.age;
+  configurations = self.nixosConfigurations;
+};
+```
+
+Only `self` is required; `masterIdentities` defaults to `[ ]`, and `files` and `configurations` to `{ }`. Configuration-scoped files are taken from each configuration's `config.age.shields.files`.
+
 ## Example consumer
 
-`examples/consumer` is a plain flake with two configurations: `alpha` decrypts its shield with a committed throwaway identity, and `beta` declares a shield file that does not exist. The identity protects nothing and is labelled as such in the example's README. That README also shows how to evaluate the example against a checkout of the kit.
+`examples/consumer` uses flake-parts with one flake-scoped shield and two configurations: `alpha` decrypts its configuration-scoped shield, and `beta` declares a shield file that does not exist. Both use the pre-configured NixOS module and read the shared shield's domain. The committed throwaway identity protects nothing and is labelled as such in the example's README. That README also shows how to evaluate the example against a checkout of the kit.
 
 ## Decrypt cache
 
@@ -109,8 +199,10 @@ The `/var/tmp` default is a provisional choice: it survives reboots, which is wh
 nix flake check
 ```
 
-The integration check runs the wrapped Nix inside the build sandbox. It first evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time. It then evaluates the example consumer as a flake, asserting `alpha`'s decrypted values and that `beta` fails naming its missing file. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+The integration check runs the wrapped Nix inside the build sandbox. It evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, including through a consumer's combined extra-builtins file supplied to `lib.mkNix`. It then evaluates the example consumer, asserting the manifest's relative locations, flake-scoped values, `alpha`'s configuration-scoped values, and that `beta` fails naming its missing file. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
 
 The NixOS module check drives the option tree through `evalModules` without the plugin. It covers types, defaults, `values` being read-only, `dir` being required when referenced, and the failures a missing file or an empty identity list produce.
+
+The flake module check evaluates the flake-parts option tree and the pre-configured NixOS module without the plugin. It covers relative manifest locations, option types, read-only fields, inherited and overridden defaults, and selecting configurations from another output. It also checks `lib.mkManifest` directly for plain flakes.
 
 The decrypt cache check drives the cache script directly with a throwaway master identity and a counting wrapper around `rage` in place of the real one. It asserts that a miss decrypts, a hit does not (a copy of the same file elsewhere included), a changed file gets its own entry, `--print-out-path` names the entry, and the override moves the directory.
