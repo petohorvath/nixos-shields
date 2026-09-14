@@ -8,11 +8,11 @@ A shield is not a secret. Its decrypted values land in the Nix store of every ma
 
 ## Shields
 
-A shield is a Nix expression stored age-encrypted in git and decrypted when Nix evaluates it. Its file name ends in `.nix.age`. It is encrypted to every master identity of the repository (a YubiKey plugin identity, an SSH key, or a plain age key), so any one of them can open it. `CONTEXT.md` holds the full glossary; `docs/adr/0001` records why decryption happens at evaluation time.
+A shield is a Nix expression stored age-encrypted in git and decrypted when Nix evaluates it. Its file name ends in `.nix.age`. It is encrypted to every master identity of the repository (a YubiKey plugin identity, an SSH key, or a plain age key), so any one of them can open it. [CONTEXT.md](CONTEXT.md) holds the full glossary; [ADR 0001](docs/adr/0001-eval-time-decryption-via-exec-builtin.md) records why decryption happens at evaluation time.
 
-## Supported Nix version
+## Supported Nix version and plugin ABI
 
-The shield builtin is provided by [nix-plugins](https://github.com/shlevy/nix-plugins), which must be compiled against the exact Nix that loads it. The kit builds it against the Nix 2.34 series from nixpkgs (`nixVersions.nix_2_34`). A compatibility patch, `packages/nix-plugins/nix-2.34.patch`, is carried in-kit until an upstream nix-plugins release builds against that Nix. A newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
+The shield builtin is provided by [nix-plugins](https://github.com/shlevy/nix-plugins), which must be compiled against the exact Nix that loads it. The kit builds it against the Nix 2.34 series from nixpkgs (`nixVersions.nix_2_34`). This ABI requirement is why the kit supplies a wrapped Nix together with the matching plugin, rather than loading the plugin into an arbitrary system Nix. A [compatibility patch](packages/nix-plugins/nix-2.34.patch) is carried in-kit until an upstream nix-plugins release builds against that Nix. A newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
 
 Only x86_64-linux is exercised by the checks; outputs are declared for aarch64-linux and aarch64-darwin as well. x86_64-darwin is not declared, as nixpkgs dropped it in 26.11.
 
@@ -34,6 +34,30 @@ A ready-made set with defaults:
 ```sh
 nix shell github:petohorvath/nixos-shields#nix
 ```
+
+### Tools that invoke Nix
+
+`nixos-rebuild`, `nixos-anywhere`, and `disko` include their own Nix in their executable search paths. Override their `nix` argument so evaluations they launch also load the shield builtin. In a consumer's development shell, with `nixos-shields` bound to the flake input and `pkgs` to a Linux package set:
+
+```nix
+let
+  nix = nixos-shields.lib.mkNix {
+    inherit pkgs;
+    extraConfig = "accept-flake-config = true"; # optional consumer policy
+  };
+in
+pkgs.mkShellNoCC {
+  packages = [
+    nix
+    nixos-shields.packages.${pkgs.stdenv.hostPlatform.system}.nixos-shields
+    (pkgs.nixos-rebuild.override { inherit nix; })
+    (pkgs.nixos-anywhere.override { inherit nix; })
+    (pkgs.disko.override { inherit nix; })
+  ];
+}
+```
+
+Keep these overrides in the consumer; they are not kit outputs. The recipe uses the packages from nixpkgs; packages supplied by a tool's own flake may expose different override arguments.
 
 ### Composing extra builtins
 
@@ -76,23 +100,35 @@ nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/b
 | `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. |
 | `age.shields.values` | attribute set, read-only | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it. |
 
-Minimal wiring, with each configuration reading `<dir>/<name>.nix.age`:
+For a plain flake, the following `flake.nix` wires the module and publishes the manifest used by the command-line tool. It reads `shields/alpha.nix.age`; use your own master identity and shield file locations, all under the flake root:
 
 ```nix
 {
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.nixos-shields.url = "github:petohorvath/nixos-shields";
+  inputs.nixos-shields.inputs.nixpkgs.follows = "nixpkgs";
 
-  outputs = { nixpkgs, nixos-shields, ... }: {
+  outputs = { self, nixpkgs, nixos-shields, ... }:
+  let
+    masterIdentities = [ ./master-identities/yubikey-1.txt ];
+  in {
+    shields = nixos-shields.lib.mkManifest {
+      inherit self masterIdentities;
+      configurations = self.nixosConfigurations;
+    };
+
     nixosConfigurations.alpha = nixpkgs.lib.nixosSystem {
       modules = [
         nixos-shields.nixosModules.default
         ({ config, ... }: {
           age.shields = {
-            masterIdentities = [ ./master-identities/yubikey-1.txt ];
+            inherit masterIdentities;
             dir = ./shields;
             files.facts = config.age.shields.dir + "/alpha.nix.age";
           };
           networking.domain = config.age.shields.values.facts.domain;
+          nixpkgs.hostPlatform = "x86_64-linux";
+          system.stateVersion = "26.05";
         })
       ];
     };
@@ -115,30 +151,46 @@ Import `nixos-shields.flakeModule` in a flake-parts flake to declare flake-scope
 | `shields.configurations` | attribute set of evaluated configurations | `config.flake.nixosConfigurations` | Configurations whose shield files enter the manifest. Override when your configurations live elsewhere. |
 | `shields.nixosModule` | module, read-only | derived | The default NixOS module with directory and identities applied using `mkDefault`. Ordinary configuration assignments override them. |
 
-Inside the module passed to `flake-parts.lib.mkFlake`:
+For a flake-parts consumer, this `flake.nix` declares both scopes. Supply your own master identity and shield files, then add your configuration's remaining NixOS settings:
 
 ```nix
-{ config, ... }:
 {
-  imports = [ nixos-shields.flakeModule ];
-  shields = {
-    dir = ./shields;
-    masterIdentities = [ ./master-identities/yubikey-1.txt ];
-    files.shared = ./shields/shared.nix.age;
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
+    nixos-shields.url = "github:petohorvath/nixos-shields";
+    nixos-shields.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-shields.inputs.flake-parts.follows = "flake-parts";
   };
 
-  flake.sharedShield = config.shields.values.shared;
-  flake.nixosConfigurations.alpha = nixpkgs.lib.nixosSystem {
-    modules = [
-      config.shields.nixosModule
-      ({ config, ... }: {
-        age.shields.files.facts = config.age.shields.dir + "/alpha.nix.age";
-        # The configuration's other NixOS settings go here.
-      })
-    ];
-  };
+  outputs = inputs@{ flake-parts, nixpkgs, nixos-shields, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } ({ config, ... }: {
+      imports = [ nixos-shields.flakeModule ];
+      systems = [ "x86_64-linux" ];
+      shields = {
+        dir = ./shields;
+        masterIdentities = [ ./master-identities/yubikey-1.txt ];
+        files.shared = ./shields/shared.nix.age;
+      };
+
+      flake.sharedShield = config.shields.values.shared;
+      flake.nixosConfigurations.alpha = nixpkgs.lib.nixosSystem {
+        modules = [
+          config.shields.nixosModule
+          ({ config, ... }: {
+            age.shields.files.facts = config.age.shields.dir + "/alpha.nix.age";
+            networking.domain = config.age.shields.values.facts.domain;
+            nixpkgs.hostPlatform = "x86_64-linux";
+            system.stateVersion = "26.05";
+          })
+        ];
+      };
+    });
 }
 ```
+
+`shields.values.shared` is available before any configuration evaluates. Capture it in the outer flake-parts module or pass it through `specialArgs` when a NixOS module needs shared values; its `config` argument refers to the NixOS configuration. If you already use agenix-rekey, assign `shields.masterIdentities` from your existing master identity list in this outer module.
 
 ## Manifest
 
@@ -204,7 +256,18 @@ nixos-shields clean
 
 ## Example consumer
 
-`examples/consumer` uses flake-parts with one flake-scoped shield and two configurations: `alpha` decrypts its configuration-scoped shield, and `beta` declares a shield file that does not exist. Both use the pre-configured NixOS module and read the shared shield's domain. The committed throwaway identity protects nothing and is labelled as such in the example's README. That README also shows how to evaluate the example against a checkout of the kit.
+[examples/consumer](examples/consumer) uses flake-parts with one flake-scoped shield and two configurations: `alpha` decrypts its configuration-scoped shield, and `beta` declares a shield file that does not exist. Both use the pre-configured NixOS module and read the shared shield's domain. The committed [throwaway master identity](examples/consumer/master-identities/throwaway.txt) protects nothing: it is public test data, must not be reused, and is not a leaked credential.
+
+From a checkout of this repository:
+
+```sh
+nix run .#nix -- eval --json \
+  --no-write-lock-file \
+  --override-input nixos-shields . \
+  ./examples/consumer#nixosConfigurations.alpha.config.age.shields.values
+```
+
+Replace the final attribute with `#sharedShield` for the flake-scoped value or `#shields` for the manifest. See the [example README](examples/consumer/README.md) for its layout and the deliberately missing shield.
 
 ## Decrypt cache
 
@@ -224,6 +287,18 @@ nixos-shields clean
 ```
 
 The `/var/tmp` default is a provisional choice: it survives reboots, which is what keeps a hardware identity quiet across sessions, at the cost of plaintext outliving the session. It may be revisited; only the override and this note ship for now.
+
+## Contributing
+
+Read the [glossary](CONTEXT.md) and relevant [ADRs](docs/adr/) before changing code; [AGENTS.md](AGENTS.md) points to the contributor workflows. User-visible changes belong in [CHANGELOG.md](CHANGELOG.md)'s Unreleased section.
+
+```sh
+nix develop
+```
+
+Entering the development shell installs or refreshes `pre-commit` and `pre-push` Git hooks through [git-hooks.nix](https://github.com/cachix/git-hooks.nix). The pre-commit hook runs the same Nix formatter as `nix fmt`. When it changes a file, review and stage the formatting, then retry the commit. The pre-push hook runs `nix flake check` with the kit's wrapped Nix. Its push-only stage keeps it out of the sandboxed formatting check, so checks do not call themselves. `.pre-commit-config.yaml` is generated and ignored by Git.
+
+CI runs the formatter and rejects any resulting diff, then builds the checks on x86_64-linux. aarch64-linux and aarch64-darwin outputs are declared but are not tested by CI.
 
 ## Checks
 

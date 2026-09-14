@@ -13,6 +13,7 @@
     ./checks.nix
     ./dev-shells.nix
     ./formatter.nix
+    ./git-hooks.nix
     ./lib.nix
     ./modules.nix
     ./packages.nix

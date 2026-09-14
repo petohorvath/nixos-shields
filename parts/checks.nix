@@ -25,6 +25,7 @@ in
           inherit kit;
           inherit (config.packages) nix nixos-shields;
           flakeParts = inputs.flake-parts;
+          gitHooks = inputs.git-hooks;
           example = ../examples/consumer;
         };
         integration = pkgs.callPackage ../tests/integration/wrapped-nix.nix {
@@ -32,6 +33,7 @@ in
           inherit kit;
           inherit (config.packages) nix;
           flakeParts = inputs.flake-parts;
+          gitHooks = inputs.git-hooks;
           libDir = ../lib;
           example = ../examples/consumer;
           composedNix = (import ../lib).mkNix {

@@ -10,4 +10,4 @@ The five canonical triage roles use their default label strings (`needs-triage`,
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Before exploring or changing code, read the glossary in [CONTEXT.md](CONTEXT.md) and the relevant [ADRs](docs/adr/). See [docs/agents/domain.md](docs/agents/domain.md) for vocabulary and ADR conflict handling.

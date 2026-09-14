@@ -3,6 +3,7 @@
     { config, pkgs, ... }:
     {
       devShells.default = pkgs.mkShellNoCC {
+        shellHook = config.pre-commit.shellHook;
         # The wrapped Nix, so `nix flake check` here loads the builtin too.
         packages = [
           config.packages.nix

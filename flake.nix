@@ -7,6 +7,11 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
+    # The hooks module uses our package set; its own flake inputs are unnecessary.
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      flake = false;
+    };
   };
 
   outputs =
