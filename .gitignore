@@ -2,6 +2,10 @@
 # Issues; the local copies are working files, not source.
 .scratch/
 
+# The example consumer's inputs are overridden when it is checked;
+# a lock written by running it by hand is not source.
+examples/*/flake.lock
+
 # nix build output symlinks
 result
 result-*

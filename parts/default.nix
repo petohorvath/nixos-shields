@@ -14,6 +14,7 @@
     ./dev-shells.nix
     ./formatter.nix
     ./lib.nix
+    ./modules.nix
     ./packages.nix
   ];
 }

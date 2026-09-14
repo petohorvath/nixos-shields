@@ -1,0 +1,5 @@
+# THROWAWAY age identity, committed on purpose so the example evaluates.
+# It protects nothing; never reuse it.
+# created: 2026-09-14T11:37:02+02:00
+# public key: age1nwxntuhuh6m4xu5cyv4dhlk44p38n25mtcfr2zaw3t4re9x0ne2q5rjrqg
+AGE-SECRET-KEY-1H0LRSF0L8Y3WPCYXT49AXXHU54Q33ZTDYMETERFEAHZTPFSH9A4QN7WYCL

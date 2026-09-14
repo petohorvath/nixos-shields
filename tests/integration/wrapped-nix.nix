@@ -1,0 +1,150 @@
+/*
+  The wrapped Nix, driven from where a consumer stands, inside the
+  build sandbox (seam 1 of the spec's testing decisions): the library
+  function on a fixture made at check time, then the example consumer
+  evaluated as a flake.
+
+  The sandbox's /nix/store is group-writable, so the check opens a Nix
+  store whose physical directory is that one and whose database lives
+  under the build directory. Paths the sandbox already holds (nixpkgs,
+  flake-parts, the kit) are registered rather than copied, and the
+  example's flake source lands where the decrypt script can read it:
+  with a chroot store it would exist only under the store's root.
+*/
+{
+  runCommand,
+  jq,
+  nix,
+  rage,
+  libDir,
+  example,
+  kit,
+  nixpkgs,
+  flakeParts,
+}:
+runCommand "nixos-shields-integration"
+  {
+    nativeBuildInputs = [
+      jq
+      nix
+      rage
+    ];
+    inherit
+      example
+      flakeParts
+      kit
+      libDir
+      nixpkgs
+      ;
+    inherit (nix) extraBuiltinsFile;
+  }
+  ''
+    export HOME=$TMPDIR/home
+    export XDG_CACHE_HOME=$HOME/.cache
+    export XDG_CONFIG_HOME=$HOME/.config
+    export XDG_DATA_HOME=$HOME/.local/share
+    export XDG_STATE_HOME=$HOME/.local/state
+    export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/cache
+    store="local?real=/nix/store&state=$TMPDIR/state&log=$TMPDIR/log"
+    mkdir -p "$HOME" "$NIXOS_SHIELDS_CACHE_DIR"
+    cd "$TMPDIR"
+
+    fail() { echo "FAIL: $*" >&2; exit 1; }
+
+    # A path already in the sandbox, made known to the store as it is.
+    # --register-validity would take ownership of it; --load-db only
+    # records what it is told, so the NAR hash and size are computed here.
+    register() {
+      local path=$1 hash size
+      hash="sha256:$(nix-hash --type sha256 --base32 "$path")"
+      size=$(nix-store --store "$store" --dump "$path" | wc -c)
+      printf '%s\n%s\n%s\n\n0\n' "$path" "$hash" "$size" \
+        | nix-store --store "$store" --load-db
+    }
+
+    nixEval() {
+      nix eval --store "$store" --json \
+        --extra-experimental-features 'nix-command flakes' "$@"
+    }
+
+    evalJson() { nixEval --impure --expr "$1"; }
+
+    # The wrapper sets NIX_CONFIG for the nix process only.
+    [[ -z "''${NIX_CONFIG:-}" ]] || fail "NIX_CONFIG leaked into the shell"
+    nix-store --version | grep -q '^nix-store (Nix) 2\.34\.' \
+      || fail "nix-store lost its multi-call identity"
+    nix-build --version | grep -q '^nix-build (Nix) 2\.34\.' \
+      || fail "nix-build lost its multi-call identity"
+    nix-instantiate --store "$store" --eval --expr 'builtins ? extraBuiltins' \
+      | grep -qx true || fail "nix-instantiate does not load the builtin"
+    evalJson 'builtins ? extraBuiltins' | grep -qx true \
+      || fail "nix does not load the builtin"
+
+    # A throwaway identity and a fixture encrypted to it, made at check time.
+    rage-keygen -o identity.txt 2>/dev/null
+    echo '{ domain = "example.test"; answer = 42; }' > fixture.nix
+    rage --encrypt --identity identity.txt --output fixture.nix.age fixture.nix
+    rm fixture.nix
+
+    lib="(import $libDir)"
+
+    expected='{"answer":42,"domain":"example.test"}'
+    shield="$lib.importShield [ $TMPDIR/identity.txt ]"
+    actual=$(evalJson "$shield $TMPDIR/fixture.nix.age" | jq -cS .)
+    [[ $actual == "$expected" ]] \
+      || fail "decrypted value was $actual, expected $expected"
+
+    # expectFailure <what> <pattern> <command>...
+    expectFailure() {
+      local what=$1 pattern=$2
+      shift 2
+      if "$@" 2> stderr.log; then
+        fail "$what: evaluation succeeded"
+      fi
+      grep -q -- "$pattern" stderr.log \
+        || fail "$what: message lacks '$pattern'"
+    }
+
+    expectFailure "missing shield file" "$TMPDIR/missing.nix.age" \
+      evalJson "$shield $TMPDIR/missing.nix.age"
+    expectFailure "empty master identities" "no master identity" \
+      evalJson "$lib.importShield [ ] $TMPDIR/fixture.nix.age"
+
+    # The example consumer, evaluated as a flake with its inputs
+    # pointed at the sandbox's copies. Pure evaluation reads store
+    # paths through the store, so the builtins file must be valid too.
+    register "$extraBuiltinsFile"
+    register "$nixpkgs"
+    register "$flakeParts"
+    register "$kit"
+
+    evalExample() {
+      nixEval --no-write-lock-file \
+        --override-input nixpkgs "path:$nixpkgs" \
+        --override-input nixos-shields "path:$kit" \
+        --override-input nixos-shields/flake-parts "path:$flakeParts" \
+        "path:$example#nixosConfigurations.$1"
+    }
+
+    expected='{"facts":{"domain":"alpha.example.test","macAddress":"02:00:00:00:00:01"}}'
+    actual=$(evalExample alpha.config.age.shields.values | jq -cS .)
+    [[ $actual == "$expected" ]] \
+      || fail "alpha's shield values were $actual, expected $expected"
+
+    # The value reaches ordinary options of the same configuration.
+    actual=$(evalExample alpha.config.networking.domain)
+    [[ $actual == '"alpha.example.test"' ]] \
+      || fail "alpha's networking.domain was $actual"
+
+    expectFailure "configuration without its shield" \
+      "shields/beta.nix.age does not exist" \
+      evalExample beta.config.age.shields.values
+
+    # The suffix check inspects the base name, so nothing above copied
+    # a shield file into the store on its own; the example's source
+    # tree is the only place one may appear.
+    copies=$(find /nix/store -maxdepth 1 -name '*.nix.age')
+    [[ -z $copies ]] || fail "shield file copied into the eval store: $copies"
+
+    touch "$out"
+  ''

@@ -40,8 +40,49 @@ nix shell github:petohorvath/nixos-shields#nix
 `lib.importShield` takes the master identity list and the shield file and returns the decrypted value. It fails with a message naming the file when the file does not exist, and with an explicit message when the identity list is empty.
 
 ```nix
-nixos-shields.lib.importShield [ ./master-ids/yubikey-1.pub ] ./shields/beta.nix.age
+nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/beta.nix.age
 ```
+
+## NixOS module
+
+`nixosModules.default` exposes a configuration's shields under `age.shields`. The module knows nothing about configuration names or directory layout: the consumer's own wiring decides which file each configuration reads.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `age.shields.masterIdentities` | list of paths | `[ ]` | Age identity files, any one of which can decrypt every shield of the configuration. Evaluating a shield with none set fails. |
+| `age.shields.dir` | path | none | The directory holding the shield files. Never read by the kit; it exists so the wiring below can build file locations from it. |
+| `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. |
+| `age.shields.values` | attribute set, read-only | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it. |
+
+Minimal wiring, with each configuration reading `<dir>/<name>.nix.age`:
+
+```nix
+{
+  inputs.nixos-shields.url = "github:petohorvath/nixos-shields";
+
+  outputs = { nixpkgs, nixos-shields, ... }: {
+    nixosConfigurations.alpha = nixpkgs.lib.nixosSystem {
+      modules = [
+        nixos-shields.nixosModules.default
+        ({ config, ... }: {
+          age.shields = {
+            masterIdentities = [ ./master-identities/yubikey-1.txt ];
+            dir = ./shields;
+            files.facts = config.age.shields.dir + "/alpha.nix.age";
+          };
+          networking.domain = config.age.shields.values.facts.domain;
+        })
+      ];
+    };
+  };
+}
+```
+
+Reading a value needs the wrapped Nix, so the builtin is loaded; without it evaluation fails naming `lib.mkNix`.
+
+## Example consumer
+
+`examples/consumer` is a plain flake with two configurations: `alpha` decrypts its shield with a committed throwaway identity, and `beta` declares a shield file that does not exist. The identity protects nothing and is labelled as such in the example's README. That README also shows how to evaluate the example against a checkout of the kit.
 
 ## Decrypt cache
 
@@ -68,6 +109,8 @@ The `/var/tmp` default is a provisional choice: it survives reboots, which is wh
 nix flake check
 ```
 
-The integration check runs the wrapped Nix inside the build sandbox against a fixture encrypted to a throwaway key generated at check time, and doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+The integration check runs the wrapped Nix inside the build sandbox. It first evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time. It then evaluates the example consumer as a flake, asserting `alpha`'s decrypted values and that `beta` fails naming its missing file. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+
+The NixOS module check drives the option tree through `evalModules` without the plugin. It covers types, defaults, `values` being read-only, `dir` being required when referenced, and the failures a missing file or an empty identity list produce.
 
 The decrypt cache check drives the cache script directly with a throwaway master identity and a counting wrapper around `rage` in place of the real one. It asserts that a miss decrypts, a hit does not (a copy of the same file elsewhere included), a changed file gets its own entry, `--print-out-path` names the entry, and the override moves the directory.
