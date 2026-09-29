@@ -73,9 +73,14 @@ runCommand "nixos-shields-integration"
       consumerAnswer = builtins.extraBuiltins.consumerAnswer;
     }"
     actual=$(evalJson ${composedNix}/bin/nix "$composed" | jq -cS .)
-    expected='{"consumerAnswer":42,"shield":{"answer":42,"domain":"example.test"}}'
+    expected='{"consumerAnswer":42,'
+    expected+='"shield":{"answer":42,"domain":"example.test"}}'
     [[ $actual == "$expected" ]] \
       || fail "composed builtins returned $actual, expected $expected"
+
+    # The fixture lives outside the store; reading it must not copy it in.
+    copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age')
+    [[ -z $copies ]] || fail "shield file copied into the store: $copies"
 
     touch "$out"
   ''

@@ -210,7 +210,7 @@ in
     };
     expectedError = {
       type = "ThrownError";
-      msg = "manifest path /example/outside\\.nix\\.age is outside flake root";
+      msg = "manifest path /example/outside\\.nix\\.age is outside flake root ${root}$";
     };
   };
 

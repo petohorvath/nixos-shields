@@ -71,7 +71,7 @@ evalExample() {
 }
 
 # Shield values reach ordinary options of the configuration, and a
-# declared missing file fails naming its location.
+# declared missing shield file fails naming its location.
 [[ $(evalExample nixosConfigurations.alpha.config.networking.domain) == '"alpha.example.test"' ]] \
   || fail "alpha's networking.domain lacks its shield value"
 [[ $(evalExample nixosConfigurations.alpha.config.networking.search) == '["example.test"]' ]] \

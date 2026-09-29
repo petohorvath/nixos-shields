@@ -310,7 +310,7 @@ nix flake check
 
 The `integration` check runs the wrapped Nix inside the build sandbox. It checks that the multi-call binaries keep their identity and load the builtin, then evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, including through a consumer's combined extra-builtins file supplied to `lib.mkNix`. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
 
-The `cli` check copies the example into a writable directory and drives the packaged tool. It covers text and JSON listings, configuration filtering, local directory selection, shield values reaching `alpha`'s ordinary options, `beta` failing with its missing file's location, unchanged and changed edits, creating a missing shield, editor failure and temporary-file cleanup, encryption to all master identities, rotation to a second identity verified through wrapped Nix, no shield file copied into the store, and decrypt-cache cleanup.
+The `cli` check copies the example into a writable directory and drives the packaged tool. It covers text and JSON listings, configuration filtering, local directory selection, shield values reaching `alpha`'s ordinary options, `beta` failing with its missing shield file's location, unchanged and changed edits, creating a missing shield, editor failure and temporary-file cleanup, encryption to all master identities, rotation to a second identity verified through wrapped Nix, no shield file copied into the store, and decrypt-cache cleanup.
 
 The `tests` check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites under `tests/suites` without the plugin, against the flake's public outputs:
 
