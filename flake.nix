@@ -12,7 +12,7 @@
   outputs =
     inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      # Only x86_64-linux is exercised by the checks; the rest are declared.
+      # CI checks both Linux systems; aarch64-darwin is declared only.
       # x86_64-darwin is absent because nixpkgs dropped it in 26.11.
       systems = [
         "x86_64-linux"

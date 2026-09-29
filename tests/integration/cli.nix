@@ -3,7 +3,9 @@
   real encryption and wrapped Nix evaluation in the build sandbox.
 */
 {
+  closureInfo,
   runCommand,
+  stdenvNoCC,
   jq,
   nix,
   nixos-shields,
@@ -13,21 +15,45 @@
   nixpkgs,
   flakeParts,
 }:
+let
+  nativeBuildInputs = [
+    jq
+    nix
+    nixos-shields
+    rage
+  ];
+
+  /*
+    Registration for the sandbox's inputs. Evaluating the example can add
+    one of them, such as a stdenv setup hook, to the store again; if it is
+    unregistered, its read-only copy blocks the write. The builder scripts
+    are inputs of this derivation rather than of stdenv's closure.
+  */
+  builderScripts = builtins.filter builtins.isPath (runCommand "builder-scripts" { } "").args;
+  sandboxRegistration = closureInfo {
+    rootPaths = map (path: "${path}") (
+      [
+        stdenvNoCC
+        example
+        flakeParts
+        kit
+        nixpkgs
+        nix.extraBuiltinsFile
+      ]
+      ++ nativeBuildInputs
+      ++ builderScripts
+    );
+  };
+in
 runCommand "nixos-shields-cli"
   {
-    nativeBuildInputs = [
-      jq
-      nix
-      nixos-shields
-      rage
-    ];
     inherit
       example
       flakeParts
       kit
+      nativeBuildInputs
       nixpkgs
       ;
-    inherit (nix) extraBuiltinsFile;
   }
   ''
     export HOME=$TMPDIR/home
@@ -36,11 +62,9 @@ runCommand "nixos-shields-cli"
     export NIX_REMOTE="$NIX_REMOTE&log=$TMPDIR/log"
     mkdir -p "$HOME"
 
-    ${builtins.readFile ./register-store-path.sh}
-    registerStorePath "$NIX_REMOTE" "$extraBuiltinsFile"
-    registerStorePath "$NIX_REMOTE" "$nixpkgs"
-    registerStorePath "$NIX_REMOTE" "$flakeParts"
-    registerStorePath "$NIX_REMOTE" "$kit"
+    # Make the sandbox inputs known to the evaluation store without taking
+    # ownership of them.
+    nix-store --store "$NIX_REMOTE" --load-db < ${sandboxRegistration}/registration
 
     # A space in the checkout name exercises path handling too.
     consumer="$TMPDIR/example consumer"

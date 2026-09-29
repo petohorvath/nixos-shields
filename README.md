@@ -14,7 +14,7 @@ A shield is a Nix expression stored age-encrypted in git and decrypted when Nix 
 
 The shield builtin is provided by [nix-plugins](https://github.com/shlevy/nix-plugins), which must be compiled against the exact Nix that loads it. The kit builds it against the Nix 2.34 series from nixpkgs (`nixVersions.nix_2_34`). This ABI requirement is why the kit supplies a wrapped Nix together with the matching plugin, rather than loading the plugin into an arbitrary system Nix. A [compatibility patch](packages/nix-plugins/nix-2.34.patch) is carried in-kit until an upstream nix-plugins release builds against that Nix. A newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
 
-Only x86_64-linux is exercised by the checks; outputs are declared for aarch64-linux and aarch64-darwin as well. x86_64-darwin is not declared, as nixpkgs dropped it in 26.11.
+CI runs the checks on x86_64-linux and aarch64-linux; outputs are declared for aarch64-darwin as well, but CI does not test it. x86_64-darwin is not declared, as nixpkgs dropped it in 26.11.
 
 ## Wrapped Nix
 
@@ -290,7 +290,7 @@ The `/var/tmp` default is a provisional choice: it survives reboots, which is wh
 
 ## Contributing
 
-Read the [glossary](CONTEXT.md) and relevant [ADRs](docs/adr/) before changing code; [AGENTS.md](AGENTS.md) points to the contributor workflows. User-visible changes belong in [CHANGELOG.md](CHANGELOG.md)'s Unreleased section.
+Read the [glossary](CONTEXT.md) and relevant [ADRs](docs/adr/) before changing code; [AGENTS.md](AGENTS.md) points to the contributor workflows. User-visible changes belong in the topmost, unreleased section of [CHANGELOG.md](CHANGELOG.md). Its heading names the next version, which must be a minor or major bump when a change removes a public output.
 
 ```sh
 nix develop
@@ -300,7 +300,7 @@ The development shell provides the kit's wrapped Nix, nix-unit, the formatter, t
 
 Format with `nix fmt`. The `formatting` check fails when the formatter would change a file, and the `lint` check runs statix, deadnix, shellcheck, and actionlint; both run in `nix flake check`.
 
-CI builds the checks on x86_64-linux. aarch64-linux and aarch64-darwin outputs are declared but are not tested by CI.
+CI calls the shared [project policy](https://github.com/petohorvath/nixos-project-policy) workflow at `v0.5`, on x86_64-linux and aarch64-linux. It checks the flake's inputs and public outputs, starts the development shell, evaluates the formatter, and runs `nix flake check` with the locked nixpkgs and with the policy's stable and unstable nixpkgs pins. The policy lists the [required statuses](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md#caller), and its [local check](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/README.md#local-check) runs the same checks from the repo root.
 
 ## Checks
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - Unreleased
 
 ### Added
 
@@ -11,6 +11,7 @@
 
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are flake checks, run by `nix flake check` and CI.
+- CI calls the shared project policy `v0.5` workflow instead of its own. It runs on x86_64-linux and aarch64-linux and tests the locked nixpkgs and the policy's stable and unstable pins; the required statuses become `Policy / Check (<system>)` and `Policy / Tests (locked|stable|unstable, <system>)`.
 
 ### Removed
 
