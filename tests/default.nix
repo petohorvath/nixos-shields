@@ -19,8 +19,30 @@ let
       ../packages
     ];
   };
+
+  sourceDir = lib.cleanSource ../.;
+
+  # Run a script against a writable copy of the source.
+  runSourceCheck =
+    {
+      name,
+      tools,
+      script,
+    }:
+    pkgs.runCommand name { nativeBuildInputs = tools; } ''
+      cp -R ${sourceDir} source
+      chmod -R u+w source
+      cd source
+      ${script}
+      touch "$out"
+    '';
 in
 {
+  tests = pkgs.callPackage ./checks.nix {
+    inherit (inputs) nixpkgs;
+    flakeParts = inputs.flake-parts;
+  };
+  decrypt-cache = pkgs.callPackage ./integration/decrypt-cache.nix { };
   cli = pkgs.callPackage ./integration/cli.nix {
     inherit (inputs) nixpkgs;
     inherit kit;
@@ -45,9 +67,24 @@ in
       '';
     };
   };
-  decrypt-cache = pkgs.callPackage ./unit/decrypt-cache.nix { };
-  nixos-module = pkgs.callPackage ./unit/nixos-module.nix { };
-  flake-module = pkgs.callPackage ./unit/flake-module.nix {
-    flakeParts = inputs.flake-parts;
+  formatting = runSourceCheck {
+    name = "nixos-shields-formatting";
+    tools = [ formatter ];
+    script = "treefmt --ci --tree-root .";
+  };
+  lint = runSourceCheck {
+    name = "nixos-shields-lint";
+    tools = [
+      pkgs.actionlint
+      pkgs.deadnix
+      pkgs.shellcheck
+      pkgs.statix
+    ];
+    script = ''
+      statix check .
+      deadnix --fail .
+      shellcheck --shell bash packages/*/*.sh tests/integration/*.sh
+      actionlint .github/workflows/*.yml
+    '';
   };
 }

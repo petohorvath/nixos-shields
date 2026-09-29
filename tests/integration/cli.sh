@@ -1,3 +1,6 @@
+# cli.nix copies the example to $consumer before sourcing this script.
+: "${consumer:?}" "${example:?}"
+
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 expectFailure() {
@@ -14,7 +17,7 @@ expectFailure() {
 mkdir "$TMPDIR/cleanup-fixture"
 echo plaintext > "$TMPDIR/cleanup-fixture/shield.nix"
 (
-  cd "$HOME"
+  cd "$HOME" || exit
   NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/cleanup-fixture" nixos-shields clean
   NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/cleanup-fixture" nixos-shields clean
 )
@@ -54,7 +57,7 @@ grep -q 'alpha:facts.*exists' filtered.txt || fail "filtered text lacks alpha"
 if grep -Eq 'shared|beta:facts' filtered.txt; then fail "filtered text includes other scopes"; fi
 
 (
-  cd "$TMPDIR"
+  cd "$TMPDIR" || exit
   nixos-shields --flake "$consumer" list --json > from-elsewhere.json
 )
 cmp listing.json "$TMPDIR/from-elsewhere.json" || fail "--flake did not select the consumer"
@@ -132,7 +135,7 @@ cp master-identities/throwaway.txt "$TMPDIR/old identity.txt"
 sed -i 's@\[ ./master-identities/throwaway.txt ./master-identities/backup.txt \]@[ ./master-identities/backup.txt ]@' flake.nix
 sed -i '/files.shared =/a\          files.sharedAlias = ./shields/shared.nix.age;' flake.nix
 (
-  cd "$TMPDIR"
+  cd "$TMPDIR" || exit
   nixos-shields --flake "$consumer" rekey --identity 'old identity.txt'
 )
 for file in shields/*.nix.age; do

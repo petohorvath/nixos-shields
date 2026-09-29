@@ -36,7 +36,8 @@ runCommand "nixos-shields-cli"
     export XDG_DATA_HOME=$HOME/.local/share
     export XDG_STATE_HOME=$HOME/.local/state
     export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/decrypt-cache
-    export NIX_REMOTE="local?real=/nix/store&state=$TMPDIR/state&log=$TMPDIR/log"
+    NIX_REMOTE="local?real=/nix/store&state=$TMPDIR/state"
+    export NIX_REMOTE="$NIX_REMOTE&log=$TMPDIR/log"
     mkdir -p "$HOME"
 
     ${builtins.readFile ./register-store-path.sh}
