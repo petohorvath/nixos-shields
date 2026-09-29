@@ -6,13 +6,11 @@
   plugin build.
 */
 {
-  evalShields,
+  evalNixosModule,
   existingShieldPath,
   ...
 }:
 let
-  withShields = settings: evalShields [ { age.shields = settings; } ];
-
   # The consumer's own wiring builds file locations from dir.
   wiredFromDir =
     { config, ... }:
@@ -27,7 +25,7 @@ in
 {
   testDefaults = {
     expr = {
-      inherit (evalShields [ ]) masterIdentities files values;
+      inherit (evalNixosModule [ ]) masterIdentities files values;
     };
     expected = {
       masterIdentities = [ ];
@@ -37,21 +35,22 @@ in
   };
 
   testIdentitiesRejectRelativeStrings = {
-    expr = (withShields { masterIdentities = [ "throwaway.txt" ]; }).masterIdentities;
+    expr =
+      (evalNixosModule [ { age.shields.masterIdentities = [ "throwaway.txt" ]; } ]).masterIdentities;
     expectedError = {
       type = "ThrownError";
       msg = "is not of type `absolute path";
     };
   };
   testIdentitiesRejectSingleValue = {
-    expr = (withShields { masterIdentities = /identity.txt; }).masterIdentities;
+    expr = (evalNixosModule [ { age.shields.masterIdentities = /identity.txt; } ]).masterIdentities;
     expectedError = {
       type = "ThrownError";
       msg = "is not of type `list of absolute path";
     };
   };
   testFilesRejectNonPaths = {
-    expr = (withShields { files.facts = 42; }).files;
+    expr = (evalNixosModule [ { age.shields.files.facts = 42; } ]).files;
     expectedError = {
       type = "ThrownError";
       msg = "is not of type `absolute path";
@@ -59,30 +58,30 @@ in
   };
 
   testDirRequiredWhenReferenced = {
-    expr = (evalShields [ ]).dir;
+    expr = (evalNixosModule [ ]).dir;
     expectedError = {
       type = "ThrownError";
       msg = "age\\.shields\\.dir' was accessed but has no value defined";
     };
   };
   testDirRejectsRelativeStrings = {
-    expr = (withShields { dir = "shields"; }).dir;
+    expr = (evalNixosModule [ { age.shields.dir = "shields"; } ]).dir;
     expectedError = {
       type = "ThrownError";
       msg = "is not of type `absolute path";
     };
   };
   testDirReadsBack = {
-    expr = (withShields { dir = /srv/shields; }).dir;
+    expr = (evalNixosModule [ { age.shields.dir = /srv/shields; } ]).dir;
     expected = /srv/shields;
   };
   testFilesBuiltFromDir = {
-    expr = (evalShields [ wiredFromDir ]).files.facts;
+    expr = (evalNixosModule [ wiredFromDir ]).files.facts;
     expected = /srv/shields/alpha.nix.age;
   };
 
   testValuesReadOnly = {
-    expr = (withShields { values.facts = { }; }).values;
+    expr = (evalNixosModule [ { age.shields.values.facts = { }; } ]).values;
     expectedError = {
       type = "ThrownError";
       msg = "age\\.shields\\.values' is read-only";
@@ -90,18 +89,18 @@ in
   };
   # Names are listable without decrypting anything.
   testValuesKeyedByFiles = {
-    expr = builtins.attrNames (evalShields [ missingFile ]).values;
+    expr = builtins.attrNames (evalNixosModule [ missingFile ]).values;
     expected = [ "facts" ];
   };
   testValuesFailWithoutFile = {
-    expr = (evalShields [ missingFile ]).values.facts;
+    expr = (evalNixosModule [ missingFile ]).values.facts;
     expectedError = {
       type = "ThrownError";
       msg = "shield file /srv/shields/missing\\.nix\\.age does not exist";
     };
   };
   testValuesFailWithoutIdentity = {
-    expr = (evalShields [ existingFile ]).values.facts;
+    expr = (evalNixosModule [ existingFile ]).values.facts;
     expectedError = {
       type = "ThrownError";
       msg = "no master identity configured";

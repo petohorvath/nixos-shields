@@ -7,7 +7,6 @@ in
 evaluation
 // {
   inherit lib;
-  inherit (shields) nixosModules;
   shieldsLib = shields.lib;
   # The example's shield exists, so reading it gets past the file check.
   existingShieldPath = ../../examples/consumer/shields/alpha.nix.age;

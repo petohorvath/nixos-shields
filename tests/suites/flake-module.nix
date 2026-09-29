@@ -4,26 +4,25 @@
   of configurations importing the pre-configured NixOS module.
 */
 {
-  evalConfigurationShields,
-  evalFlake,
-  evalFlakeShields,
+  evalConfiguration,
+  evalFlakeModule,
+  evalNixosModule,
   existingShieldPath,
-  nixosModules,
   shieldsLib,
   ...
 }:
 let
-  configured = evalFlake [
-    {
-      shields = {
-        dir = /nix/store/example-source/shields;
-        masterIdentities = [ /nix/store/example-source/master-identities/throwaway.txt ];
-      };
-    }
-  ];
-
-  evalConfiguration =
-    modules: evalConfigurationShields ([ configured.config.shields.nixosModule ] ++ modules);
+  # The pre-configured NixOS module of a flake with a directory and a
+  # master identity.
+  preconfiguredModule =
+    (evalFlakeModule [
+      {
+        shields = {
+          dir = /nix/store/example-source/shields;
+          masterIdentities = [ /nix/store/example-source/master-identities/throwaway.txt ];
+        };
+      }
+    ]).shields.nixosModule;
 
   exampleManifest = {
     masterIdentities = [ "master-identities/throwaway.txt" ];
@@ -45,7 +44,7 @@ in
 
   testNixosModuleInheritsDefaults = {
     expr = {
-      inherit (evalConfiguration [ ])
+      inherit (evalConfiguration [ preconfiguredModule ])
         dir
         files
         masterIdentities
@@ -63,13 +62,13 @@ in
   # Both modules declare age.shields; importing both must not declare it
   # twice.
   testNixosModuleImportsWithDefaultModule = {
-    expr = (evalConfiguration [ nixosModules.default ]).dir;
+    expr = (evalNixosModule [ preconfiguredModule ]).dir;
     expected = /nix/store/example-source/shields;
   };
 
   testFlakePublishesManifest = {
     expr =
-      (evalFlake [
+      (evalFlakeModule [
         {
           shields = {
             masterIdentities = [ /nix/store/example-source/master-identities/throwaway.txt ];
@@ -82,22 +81,22 @@ in
             };
           };
         }
-      ]).config.flake.shields;
+      ]).flake.shields;
     expected = exampleManifest;
   };
 
   testValuesKeyedByFiles = {
     expr =
       builtins.attrNames
-        (evalFlakeShields {
-          files.shared = /nix/store/example-source/shields/shared.nix.age;
-        }).values;
+        (evalFlakeModule [
+          { shields.files.shared = /nix/store/example-source/shields/shared.nix.age; }
+        ]).shields.values;
     expected = [ "shared" ];
   };
 
   testDefaults = {
     expr = {
-      inherit (evalFlakeShields { })
+      inherit ((evalFlakeModule [ ]).shields)
         configurations
         files
         masterIdentities
@@ -113,42 +112,42 @@ in
   };
 
   testDirRequiredWhenReferenced = {
-    expr = (evalFlakeShields { }).dir;
+    expr = (evalFlakeModule [ ]).shields.dir;
     expectedError = {
       type = "ThrownError";
       msg = "shields\\.dir' was accessed but has no value defined";
     };
   };
   testDirRejectsRelativeStrings = {
-    expr = (evalFlakeShields { dir = "shields"; }).dir;
+    expr = (evalFlakeModule [ { shields.dir = "shields"; } ]).shields.dir;
     expectedError = {
       type = "ThrownError";
       msg = "is not of type `absolute path";
     };
   };
   testIdentitiesRejectNonPaths = {
-    expr = (evalFlakeShields { masterIdentities = [ 42 ]; }).masterIdentities;
+    expr = (evalFlakeModule [ { shields.masterIdentities = [ 42 ]; } ]).shields.masterIdentities;
     expectedError = {
       type = "ThrownError";
       msg = "is not of type `absolute path";
     };
   };
   testFilesRejectNonPaths = {
-    expr = (evalFlakeShields { files.shared = 42; }).files;
+    expr = (evalFlakeModule [ { shields.files.shared = 42; } ]).shields.files;
     expectedError = {
       type = "ThrownError";
       msg = "is not of type `absolute path";
     };
   };
   testValuesReadOnly = {
-    expr = (evalFlakeShields { values.shared = { }; }).values;
+    expr = (evalFlakeModule [ { shields.values.shared = { }; } ]).shields.values;
     expectedError = {
       type = "ThrownError";
       msg = "shields\\.values' is read-only";
     };
   };
   testNixosModuleReadOnly = {
-    expr = (evalFlakeShields { nixosModule = { }; }).nixosModule;
+    expr = (evalFlakeModule [ { shields.nixosModule = { }; } ]).shields.nixosModule;
     expectedError = {
       type = "ThrownError";
       msg = "shields\\.nixosModule' is read-only";
@@ -157,16 +156,16 @@ in
 
   testValuesFailWithoutFile = {
     expr =
-      (evalFlakeShields {
-        files.shared = /nix/store/example-source/shields/missing.nix.age;
-      }).values.shared;
+      (evalFlakeModule [
+        { shields.files.shared = /nix/store/example-source/shields/missing.nix.age; }
+      ]).shields.values.shared;
     expectedError = {
       type = "ThrownError";
       msg = "shields/missing\\.nix\\.age does not exist";
     };
   };
   testValuesFailWithoutIdentity = {
-    expr = (evalFlakeShields { files.shared = existingShieldPath; }).values.shared;
+    expr = (evalFlakeModule [ { shields.files.shared = existingShieldPath; } ]).shields.values.shared;
     expectedError = {
       type = "ThrownError";
       msg = "no master identity configured";
@@ -177,6 +176,7 @@ in
     expr = {
       inherit
         (evalConfiguration [
+          preconfiguredModule
           {
             age.shields = {
               dir = /srv/another-directory;
@@ -195,13 +195,18 @@ in
   };
 
   testNixosModuleIdentitiesCanBeCleared = {
-    expr = (evalConfiguration [ { age.shields.masterIdentities = [ ]; } ]).masterIdentities;
+    expr =
+      (evalConfiguration [
+        preconfiguredModule
+        { age.shields.masterIdentities = [ ]; }
+      ]).masterIdentities;
     expected = [ ];
   };
 
   testNixosModuleWiresFilesFromDir = {
     expr =
       (evalConfiguration [
+        preconfiguredModule
         ({ config, ... }: { age.shields.files.facts = config.age.shields.dir + "/alpha.nix.age"; })
       ]).files.facts;
     expected = /nix/store/example-source/shields/alpha.nix.age;
@@ -209,13 +214,13 @@ in
 
   testConfigurationsCanUseAnotherOutput = {
     expr =
-      (evalFlake [
+      (evalFlakeModule [
         {
           flake.nixosConfigurations.unused = throw "the default configurations must not be evaluated";
           shields.configurations.beta.config.age.shields.files.facts =
             /nix/store/example-source/shields/beta.nix.age;
         }
-      ]).config.flake.shields.configurations;
+      ]).flake.shields.configurations;
     expected = {
       beta.files.facts = "shields/beta.nix.age";
     };
