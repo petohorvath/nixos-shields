@@ -140,7 +140,7 @@ Reading a value needs the wrapped Nix, so the builtin is loaded; without it eval
 
 ## flake-parts module
 
-Import `nixos-shields.flakeModule` in a flake-parts flake to declare flake-scoped shields and share defaults with configurations. The module uses the libraries supplied by the consumer's flake-parts; it introduces no additional flake input.
+Import `nixos-shields.flakeModules.default` in a flake-parts flake to declare flake-scoped shields and share defaults with configurations. The module uses the libraries supplied by the consumer's flake-parts; it introduces no additional flake input.
 
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -166,7 +166,7 @@ For a flake-parts consumer, this `flake.nix` declares both scopes. Supply your o
 
   outputs = inputs@{ flake-parts, nixpkgs, nixos-shields, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } ({ config, ... }: {
-      imports = [ nixos-shields.flakeModule ];
+      imports = [ nixos-shields.flakeModules.default ];
       systems = [ "x86_64-linux" ];
       shields = {
         dir = ./shields;
@@ -224,10 +224,10 @@ Only `self` is required; `masterIdentities` defaults to `[ ]`, and `files` and `
 
 ## Command-line tool
 
-The `nixos-shields` package is available on each declared system:
+The `nixos-shields` package is the flake's default package on each declared system:
 
 ```sh
-nix shell github:petohorvath/nixos-shields#nixos-shields
+nix shell github:petohorvath/nixos-shields
 ```
 
 Run it in a consumer flake directory, or pass `--flake <directory>` before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo`, `path:...`, and directories inside `/nix/store` are refused. The tool evaluates the `shields` manifest once per command and resolves its file locations against that checkout.
@@ -296,9 +296,11 @@ Read the [glossary](CONTEXT.md) and relevant [ADRs](docs/adr/) before changing c
 nix develop
 ```
 
-Entering the development shell installs or refreshes `pre-commit` and `pre-push` Git hooks through [git-hooks.nix](https://github.com/cachix/git-hooks.nix). The pre-commit hook runs the same Nix formatter as `nix fmt`. When it changes a file, review and stage the formatting, then retry the commit. The pre-push hook runs `nix flake check` with the kit's wrapped Nix. Its push-only stage keeps it out of the sandboxed formatting check, so checks do not call themselves. `.pre-commit-config.yaml` is generated and ignored by Git.
+The development shell provides the kit's wrapped Nix, nix-unit, the formatter, the linters, and rage. With [nix-direnv](https://github.com/nix-community/nix-direnv), the tracked `.envrc` loads it on entering the checkout. Development outputs live in the `dev` flake-parts partition, so consumers never evaluate them.
 
-CI runs the formatter and rejects any resulting diff, then builds the checks on x86_64-linux. aarch64-linux and aarch64-darwin outputs are declared but are not tested by CI.
+Format with `nix fmt`. The `formatting` check fails when the formatter would change a file, and the `lint` check runs statix, deadnix, shellcheck, and actionlint; both run in `nix flake check`.
+
+CI builds the checks on x86_64-linux. aarch64-linux and aarch64-darwin outputs are declared but are not tested by CI.
 
 ## Checks
 
@@ -306,12 +308,22 @@ CI runs the formatter and rejects any resulting diff, then builds the checks on 
 nix flake check
 ```
 
-The integration check runs the wrapped Nix inside the build sandbox. It evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, including through a consumer's combined extra-builtins file supplied to `lib.mkNix`. It then evaluates the example consumer, asserting the manifest's relative locations, flake-scoped values, `alpha`'s configuration-scoped values, and that `beta` fails naming its missing file. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+The `integration` check runs the wrapped Nix inside the build sandbox. It evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, including through a consumer's combined extra-builtins file supplied to `lib.mkNix`. It then evaluates the example consumer, asserting the manifest's relative locations, flake-scoped values, `alpha`'s configuration-scoped values, and that `beta` fails naming its missing file. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
 
-The command-line check copies the example into a writable directory and drives the packaged tool. It covers text and JSON listings, configuration filtering, local directory selection, unchanged and changed edits, creating a missing shield, editor failure and temporary-file cleanup, encryption to all master identities, rotation to a second identity verified through wrapped Nix, and decrypt-cache cleanup.
+The `cli` check copies the example into a writable directory and drives the packaged tool. It covers text and JSON listings, configuration filtering, local directory selection, unchanged and changed edits, creating a missing shield, editor failure and temporary-file cleanup, encryption to all master identities, rotation to a second identity verified through wrapped Nix, and decrypt-cache cleanup.
 
-The NixOS module check drives the option tree through `evalModules` without the plugin. It covers types, defaults, `values` being read-only, `dir` being required when referenced, and the failures a missing file or an empty identity list produce.
+The `tests` check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites under `tests/suites` without the plugin, against the flake's public outputs:
 
-The flake module check evaluates the flake-parts option tree and the pre-configured NixOS module without the plugin. It covers relative manifest locations, option types, read-only fields, inherited and overridden defaults, and selecting configurations from another output. It also checks `lib.mkManifest` directly for plain flakes.
+- `nixosModule` drives the option tree through `evalModules`. It covers types, defaults, `values` being read-only, `dir` being required when referenced, and the failures a missing file or an empty identity list produce.
+- `flakeModule` evaluates the flake-parts option tree and the pre-configured NixOS module. It covers relative manifest locations, option types, read-only fields, inherited and overridden defaults, selecting configurations from another output, and importing the pre-configured module beside `nixosModules.default`. It also checks `lib.mkManifest` directly for plain flakes.
 
-The decrypt cache check drives the cache script directly with a throwaway master identity and a counting wrapper around `rage` in place of the real one. It asserts that a miss decrypts, a hit does not (a copy of the same file elsewhere included), a changed file gets its own entry, `--print-out-path` names the entry, and the override moves the directory.
+From the development shell, run the suites directly with the flake's locked inputs, or select one with `--attr`:
+
+```sh
+nix-unit tests/entrypoint.nix
+nix-unit tests/entrypoint.nix --attr nixosModule
+```
+
+The `decrypt-cache` check drives the cache script directly with a throwaway master identity and a counting wrapper around `rage` in place of the real one. It asserts that a miss decrypts, a hit does not (a copy of the same file elsewhere included), a changed file gets its own entry, `--print-out-path` names the entry, and the override moves the directory.
+
+The `formatting` and `lint` checks run the formatter and linters against a copy of the source, as described in [Contributing](#contributing).
