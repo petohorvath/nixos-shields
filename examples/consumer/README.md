@@ -1,6 +1,6 @@
 # Example consumer
 
-A flake-parts flake that consumes `nixos-shields.flakeModule`, declares a flake-scoped shield, and imports `shields.nixosModule` in each NixOS configuration to inherit the directory and master identities.
+A flake-parts flake that consumes `nixos-shields.flakeModules.default`, declares a flake-scoped shield, and imports `shields.nixosModule` in each NixOS configuration to inherit the directory and master identities.
 
 ## Throwaway identity
 

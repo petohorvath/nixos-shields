@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `packages.default`, the `nixos-shields` command-line tool.
+- `flakeModules.default`, the flake-parts module.
+
+### Changed
+
+- Unit tests run under nix-unit and can be run directly from the development shell.
+- Formatting and lint are flake checks, run by `nix flake check` and CI.
+
+### Removed
+
+- The `flakeModule` output; import `flakeModules.default` instead.
+- The `git-hooks` input; drop any follows or overrides of `nixos-shields/git-hooks`.
+- The development-shell Git hooks.
+
+### Fixed
+
+- Importing both `shields.nixosModule` and `nixosModules.default` into one configuration no longer fails with an option declared twice.
+
 ## 0.1.0 - 2026-09-14
 
 ### Added

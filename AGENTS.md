@@ -16,7 +16,7 @@ Before triaging issues or applying triage roles, read the [triage label mapping]
 
 ## Development and validation
 
-- Before implementation, read [Contributing](README.md#contributing) for development-shell setup, formatting, Git hooks, and changelog policy.
+- Before implementation, read [Contributing](README.md#contributing) for development-shell setup, formatting, lint, and changelog policy.
 - Before choosing validation for code changes, read [Checks](README.md#checks) for the check command and coverage.
 - When changing Nix or nix-plugins, read [Supported Nix version and plugin ABI](README.md#supported-nix-version-and-plugin-abi) for the required version pairing.
 - Before changing example fixtures or integration expectations, read the [example consumer README](examples/consumer/README.md) for the throwaway master identity and deliberately missing shield file.

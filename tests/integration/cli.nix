@@ -12,7 +12,6 @@
   kit,
   nixpkgs,
   flakeParts,
-  gitHooks,
 }:
 runCommand "nixos-shields-cli"
   {
@@ -24,10 +23,9 @@ runCommand "nixos-shields-cli"
     ];
     inherit
       example
+      flakeParts
       kit
       nixpkgs
-      flakeParts
-      gitHooks
       ;
     inherit (nix) extraBuiltinsFile;
   }
@@ -38,14 +36,14 @@ runCommand "nixos-shields-cli"
     export XDG_DATA_HOME=$HOME/.local/share
     export XDG_STATE_HOME=$HOME/.local/state
     export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/decrypt-cache
-    export NIX_REMOTE="local?real=/nix/store&state=$TMPDIR/state&log=$TMPDIR/log"
+    NIX_REMOTE="local?real=$NIX_STORE&state=$TMPDIR/state"
+    export NIX_REMOTE="$NIX_REMOTE&log=$TMPDIR/log"
     mkdir -p "$HOME"
 
     ${builtins.readFile ./register-store-path.sh}
     registerStorePath "$NIX_REMOTE" "$extraBuiltinsFile"
     registerStorePath "$NIX_REMOTE" "$nixpkgs"
     registerStorePath "$NIX_REMOTE" "$flakeParts"
-    registerStorePath "$NIX_REMOTE" "$gitHooks"
     registerStorePath "$NIX_REMOTE" "$kit"
 
     # A space in the checkout name exercises path handling too.
@@ -56,7 +54,6 @@ runCommand "nixos-shields-cli"
     nix flake lock --extra-experimental-features 'nix-command flakes' \
       --override-input nixpkgs "path:$nixpkgs" \
       --override-input nixos-shields "path:$kit" \
-      --override-input nixos-shields/git-hooks "path:$gitHooks" \
       --override-input flake-parts "path:$flakeParts"
 
     ${builtins.readFile ./cli.sh}

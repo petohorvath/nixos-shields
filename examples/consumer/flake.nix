@@ -59,7 +59,7 @@
           };
       in
       {
-        imports = [ nixos-shields.flakeModule ];
+        imports = [ nixos-shields.flakeModules.default ];
         systems = [ ];
 
         shields = {

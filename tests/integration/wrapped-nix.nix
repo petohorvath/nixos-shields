@@ -4,8 +4,8 @@
   function on a fixture made at check time, then the example consumer
   evaluated as a flake.
 
-  The sandbox's /nix/store is group-writable, so the check opens a Nix
-  store whose physical directory is that one and whose database lives
+  The sandbox's store directory is group-writable, so the check opens a
+  Nix store whose physical directory is that one and whose database lives
   under the build directory. Paths the sandbox already holds (the kit
   and its inputs) are registered rather than copied, and the
   example's flake source lands where the decrypt script can read it:
@@ -22,7 +22,6 @@
   kit,
   nixpkgs,
   flakeParts,
-  gitHooks,
 }:
 runCommand "nixos-shields-integration"
   {
@@ -34,7 +33,6 @@ runCommand "nixos-shields-integration"
     inherit
       example
       flakeParts
-      gitHooks
       kit
       libDir
       nixpkgs
@@ -48,7 +46,7 @@ runCommand "nixos-shields-integration"
     export XDG_DATA_HOME=$HOME/.local/share
     export XDG_STATE_HOME=$HOME/.local/state
     export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/cache
-    store="local?real=/nix/store&state=$TMPDIR/state&log=$TMPDIR/log"
+    store="local?real=$NIX_STORE&state=$TMPDIR/state&log=$TMPDIR/log"
     mkdir -p "$HOME" "$NIXOS_SHIELDS_CACHE_DIR"
     cd "$TMPDIR"
 
@@ -90,11 +88,21 @@ runCommand "nixos-shields-integration"
 
     # A consumer's own extra-builtins file keeps both its additions
     # and importShield when handed to lib.mkNix.
+    composed="{
+      shield = $shield $TMPDIR/fixture.nix.age;
+      consumerAnswer = builtins.extraBuiltins.consumerAnswer;
+    }"
     actual=$(${composedNix}/bin/nix eval --store "$store" --json \
       --extra-experimental-features 'nix-command flakes' --impure \
-      --expr "{ shield = $shield $TMPDIR/fixture.nix.age; consumerAnswer = builtins.extraBuiltins.consumerAnswer; }" \
+      --expr "$composed" \
       | jq -cS .)
-    expected='{"consumerAnswer":42,"shield":{"answer":42,"domain":"example.test"}}'
+    expected=$(jq -cS . <<'JSON'
+    {
+      "consumerAnswer": 42,
+      "shield": { "answer": 42, "domain": "example.test" }
+    }
+    JSON
+    )
     [[ $actual == "$expected" ]] \
       || fail "composed builtins returned $actual, expected $expected"
 
@@ -120,19 +128,27 @@ runCommand "nixos-shields-integration"
     registerStorePath "$store" "$extraBuiltinsFile"
     registerStorePath "$store" "$nixpkgs"
     registerStorePath "$store" "$flakeParts"
-    registerStorePath "$store" "$gitHooks"
     registerStorePath "$store" "$kit"
 
     evalExample() {
       nixEval --no-write-lock-file \
         --override-input nixpkgs "path:$nixpkgs" \
         --override-input nixos-shields "path:$kit" \
-        --override-input nixos-shields/git-hooks "path:$gitHooks" \
         --override-input flake-parts "path:$flakeParts" \
         "path:$example#$1"
     }
 
-    expected='{"configurations":{"alpha":{"files":{"facts":"shields/alpha.nix.age"}},"beta":{"files":{"facts":"shields/beta.nix.age"}}},"files":{"shared":"shields/shared.nix.age"},"masterIdentities":["master-identities/throwaway.txt"]}'
+    expected=$(jq -cS . <<'JSON'
+    {
+      "configurations": {
+        "alpha": { "files": { "facts": "shields/alpha.nix.age" } },
+        "beta": { "files": { "facts": "shields/beta.nix.age" } }
+      },
+      "files": { "shared": "shields/shared.nix.age" },
+      "masterIdentities": [ "master-identities/throwaway.txt" ]
+    }
+    JSON
+    )
     actual=$(evalExample shields | jq -cS .)
     [[ $actual == "$expected" ]] \
       || fail "manifest was $actual, expected $expected"
@@ -142,8 +158,17 @@ runCommand "nixos-shields-integration"
     [[ $actual == "$expected" ]] \
       || fail "flake-scoped values were $actual, expected $expected"
 
-    expected='{"facts":{"domain":"alpha.example.test","macAddress":"02:00:00:00:00:01"}}'
-    actual=$(evalExample nixosConfigurations.alpha.config.age.shields.values | jq -cS .)
+    expected=$(jq -cS . <<'JSON'
+    {
+      "facts": {
+        "domain": "alpha.example.test",
+        "macAddress": "02:00:00:00:00:01"
+      }
+    }
+    JSON
+    )
+    actual=$(evalExample nixosConfigurations.alpha.config.age.shields.values \
+      | jq -cS .)
     [[ $actual == "$expected" ]] \
       || fail "alpha's shield values were $actual, expected $expected"
 
@@ -154,7 +179,7 @@ runCommand "nixos-shields-integration"
 
     actual=$(evalExample nixosConfigurations.alpha.config.networking.search)
     [[ $actual == '["example.test"]' ]] \
-      || fail "flake-scoped values did not reach alpha's networking.search: $actual"
+      || fail "flake-scoped values missing from networking.search: $actual"
 
     expectFailure "configuration without its shield" \
       "shields/beta.nix.age does not exist" \
@@ -163,7 +188,7 @@ runCommand "nixos-shields-integration"
     # The suffix check inspects the base name, so nothing above copied
     # a shield file into the store on its own; the example's source
     # tree is the only place one may appear.
-    copies=$(find /nix/store -maxdepth 1 -name '*.nix.age')
+    copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age')
     [[ -z $copies ]] || fail "shield file copied into the eval store: $copies"
 
     touch "$out"

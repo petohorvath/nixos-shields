@@ -17,7 +17,8 @@ let
     types
     ;
 
-  inherit (import ../lib) importShield mkManifest;
+  importShield = import ./lib/import-shield.nix;
+  mkManifest = import ./lib/mk-manifest.nix;
 
   cfg = config.shields;
 in
@@ -87,7 +88,7 @@ in
     shields.values = mapAttrs (_: importShield cfg.masterIdentities) cfg.files;
 
     shields.nixosModule = {
-      imports = [ ./nixos.nix ];
+      imports = [ ./nixos/module.nix ];
       age.shields = {
         dir = mkDefault cfg.dir;
         masterIdentities = mkDefault cfg.masterIdentities;
