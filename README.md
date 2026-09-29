@@ -308,14 +308,14 @@ CI builds the checks on x86_64-linux. aarch64-linux and aarch64-darwin outputs a
 nix flake check
 ```
 
-The `integration` check runs the wrapped Nix inside the build sandbox. It evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, including through a consumer's combined extra-builtins file supplied to `lib.mkNix`. It then evaluates the example consumer, asserting the manifest's relative locations, flake-scoped values, `alpha`'s configuration-scoped values, and that `beta` fails naming its missing file. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+The `integration` check runs the wrapped Nix inside the build sandbox. It checks that the multi-call binaries keep their identity and load the builtin, then evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, including through a consumer's combined extra-builtins file supplied to `lib.mkNix`. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
 
-The `cli` check copies the example into a writable directory and drives the packaged tool. It covers text and JSON listings, configuration filtering, local directory selection, unchanged and changed edits, creating a missing shield, editor failure and temporary-file cleanup, encryption to all master identities, rotation to a second identity verified through wrapped Nix, and decrypt-cache cleanup.
+The `cli` check copies the example into a writable directory and drives the packaged tool. It covers text and JSON listings, configuration filtering, local directory selection, shield values reaching `alpha`'s ordinary options, `beta` failing with its missing file's location, unchanged and changed edits, creating a missing shield, editor failure and temporary-file cleanup, encryption to all master identities, rotation to a second identity verified through wrapped Nix, no shield file copied into the store, and decrypt-cache cleanup.
 
 The `tests` check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites under `tests/suites` without the plugin, against the flake's public outputs:
 
-- `nixosModule` drives the option tree through `evalModules`. It covers types, defaults, `values` being read-only, `dir` being required when referenced, and the failures a missing file or an empty identity list produce.
-- `flakeModule` evaluates the flake-parts option tree and the pre-configured NixOS module. It covers relative manifest locations, option types, read-only fields, inherited and overridden defaults, selecting configurations from another output, and importing the pre-configured module beside `nixosModules.default`. It also checks `lib.mkManifest` directly for plain flakes.
+- `nixosModule` drives the option tree through `evalModules`. It covers defaults, wiring files from `dir`, `values` being read-only, and the failures a missing file or an empty identity list produce.
+- `flakeModule` evaluates the flake-parts option tree and the pre-configured NixOS module. It covers relative manifest locations, the flake options' defaults, `values` being read-only, the module's inherited and overridden defaults, selecting configurations from another output, and importing the pre-configured module beside `nixosModules.default`. It also checks `lib.mkManifest` directly for plain flakes.
 
 From the development shell, run the suites directly with the flake's locked inputs, or select one with `--attr`:
 

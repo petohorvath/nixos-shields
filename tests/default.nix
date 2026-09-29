@@ -9,7 +9,7 @@ let
 
   # The kit as the example's input: its flake and code, not its docs or
   # dev/, which the example never reads, so neither a README edit nor a
-  # tooling change rebuilds the integration and cli checks.
+  # tooling change rebuilds the cli check.
   kit = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
@@ -52,12 +52,8 @@ in
     example = ../examples/consumer;
   };
   integration = pkgs.callPackage ./integration/wrapped-nix.nix {
-    inherit (inputs) nixpkgs;
-    inherit kit;
     inherit (packages) nix;
-    flakeParts = inputs.flake-parts;
     libDir = ../lib;
-    example = ../examples/consumer;
     composedNix = (import ../lib).mkNix {
       inherit pkgs;
       extraBuiltinsFile = pkgs.writeText "consumer-extra-builtins.nix" ''

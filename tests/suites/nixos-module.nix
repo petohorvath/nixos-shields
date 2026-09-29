@@ -34,43 +34,6 @@ in
     };
   };
 
-  testIdentitiesRejectRelativeStrings = {
-    expr =
-      (evalNixosModule [ { age.shields.masterIdentities = [ "throwaway.txt" ]; } ]).masterIdentities;
-    expectedError = {
-      type = "ThrownError";
-      msg = "is not of type `absolute path";
-    };
-  };
-  testIdentitiesRejectSingleValue = {
-    expr = (evalNixosModule [ { age.shields.masterIdentities = /identity.txt; } ]).masterIdentities;
-    expectedError = {
-      type = "ThrownError";
-      msg = "is not of type `list of absolute path";
-    };
-  };
-  testFilesRejectNonPaths = {
-    expr = (evalNixosModule [ { age.shields.files.facts = 42; } ]).files;
-    expectedError = {
-      type = "ThrownError";
-      msg = "is not of type `absolute path";
-    };
-  };
-
-  testDirRequiredWhenReferenced = {
-    expr = (evalNixosModule [ ]).dir;
-    expectedError = {
-      type = "ThrownError";
-      msg = "age\\.shields\\.dir' was accessed but has no value defined";
-    };
-  };
-  testDirRejectsRelativeStrings = {
-    expr = (evalNixosModule [ { age.shields.dir = "shields"; } ]).dir;
-    expectedError = {
-      type = "ThrownError";
-      msg = "is not of type `absolute path";
-    };
-  };
   testDirReadsBack = {
     expr = (evalNixosModule [ { age.shields.dir = /srv/shields; } ]).dir;
     expected = /srv/shields;

@@ -70,6 +70,15 @@ evalExample() {
   nix eval --json --extra-experimental-features 'nix-command flakes' "path:.#$1"
 }
 
+# Shield values reach ordinary options of the configuration, and a
+# declared missing file fails naming its location.
+[[ $(evalExample nixosConfigurations.alpha.config.networking.domain) == '"alpha.example.test"' ]] \
+  || fail "alpha's networking.domain lacks its shield value"
+[[ $(evalExample nixosConfigurations.alpha.config.networking.search) == '["example.test"]' ]] \
+  || fail "alpha's networking.search lacks the flake-scoped value"
+expectFailure 'shields/beta.nix.age does not exist' \
+  evalExample nixosConfigurations.beta.config.age.shields.values
+
 # Drive the editor as an operator-supplied command, including quoted paths
 # and arguments. Its only view of the plaintext is the file passed to it.
 export EDITOR_DIRECTORY=$TMPDIR/editor-directory
@@ -151,6 +160,12 @@ done
   || fail "rotation changed alpha's values"
 [[ $(evalExample nixosConfigurations.beta.config.age.shields.values) == '{"facts":{"domain":"beta.example.test"}}' ]] \
   || fail "rotation changed beta's values"
+
+# The suffix check inspects the base name, so no evaluation above copied
+# a shield file into the store on its own; the consumer's source tree is
+# the only place one may appear.
+copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age')
+[[ -z $copies ]] || fail "shield file copied into the store: $copies"
 
 [[ -n $(find "$NIXOS_SHIELDS_CACHE_DIR" -type f -print -quit) ]] \
   || fail "wrapped evaluation did not populate the decrypt cache"
