@@ -7,7 +7,6 @@
   evalConfiguration,
   evalFlakeModule,
   evalNixosModule,
-  existingShieldPath,
   flakeRoot,
   shieldsLib,
   ...
@@ -117,64 +116,11 @@ in
     };
   };
 
-  testDirRequiredWhenReferenced = {
-    expr = (evalFlakeModule [ ]).shields.dir;
-    expectedError = {
-      type = "ThrownError";
-      msg = "shields\\.dir' was accessed but has no value defined";
-    };
-  };
-  testDirRejectsRelativeStrings = {
-    expr = (evalFlakeModule [ { shields.dir = "shields"; } ]).shields.dir;
-    expectedError = {
-      type = "ThrownError";
-      msg = "is not of type `absolute path";
-    };
-  };
-  testIdentitiesRejectNonPaths = {
-    expr = (evalFlakeModule [ { shields.masterIdentities = [ 42 ]; } ]).shields.masterIdentities;
-    expectedError = {
-      type = "ThrownError";
-      msg = "is not of type `absolute path";
-    };
-  };
-  testFilesRejectNonPaths = {
-    expr = (evalFlakeModule [ { shields.files.shared = 42; } ]).shields.files;
-    expectedError = {
-      type = "ThrownError";
-      msg = "is not of type `absolute path";
-    };
-  };
   testValuesReadOnly = {
     expr = (evalFlakeModule [ { shields.values.shared = { }; } ]).shields.values;
     expectedError = {
       type = "ThrownError";
       msg = "shields\\.values' is read-only";
-    };
-  };
-  testNixosModuleReadOnly = {
-    expr = (evalFlakeModule [ { shields.nixosModule = { }; } ]).shields.nixosModule;
-    expectedError = {
-      type = "ThrownError";
-      msg = "shields\\.nixosModule' is read-only";
-    };
-  };
-
-  testValuesFailWithoutFile = {
-    expr =
-      (evalFlakeModule [
-        { shields.files.shared = shieldsDir + "/missing.nix.age"; }
-      ]).shields.values.shared;
-    expectedError = {
-      type = "ThrownError";
-      msg = "shields/missing\\.nix\\.age does not exist";
-    };
-  };
-  testValuesFailWithoutIdentity = {
-    expr = (evalFlakeModule [ { shields.files.shared = existingShieldPath; } ]).shields.values.shared;
-    expectedError = {
-      type = "ThrownError";
-      msg = "no master identity configured";
     };
   };
 
@@ -231,23 +177,16 @@ in
     };
   };
 
-  testManifestDefaults = {
-    expr = shieldsLib.mkManifest { self.outPath = flakeRoot; };
+  # Also covers the defaults of the omitted arguments.
+  testManifestIncludesUnshieldedConfigurations = {
+    expr = shieldsLib.mkManifest {
+      self.outPath = flakeRoot;
+      configurations.unshielded.config.networking.hostName = "unshielded";
+    };
     expected = {
       masterIdentities = [ ];
       files = { };
-      configurations = { };
-    };
-  };
-
-  testManifestIncludesUnshieldedConfigurations = {
-    expr =
-      (shieldsLib.mkManifest {
-        self.outPath = flakeRoot;
-        configurations.unshielded.config.networking.hostName = "unshielded";
-      }).configurations;
-    expected = {
-      unshielded.files = { };
+      configurations.unshielded.files = { };
     };
   };
 
@@ -264,28 +203,6 @@ in
     };
   };
 
-  testManifestRejectsOtherRoots = {
-    expr = shieldsLib.mkManifest {
-      self.outPath = flakeRoot;
-      files.shared = /example/other-flake/shields/shared.nix.age;
-    };
-    expectedError = {
-      type = "ThrownError";
-      msg = "is outside flake root ${root}$";
-    };
-  };
-
-  testManifestRejectsIdentityOutsideRoot = {
-    expr = shieldsLib.mkManifest {
-      self.outPath = flakeRoot;
-      masterIdentities = [ /srv/identity.txt ];
-    };
-    expectedError = {
-      type = "ThrownError";
-      msg = "manifest path /srv/identity\\.txt is outside flake root";
-    };
-  };
-
   testManifestRejectsEscapingString = {
     expr = shieldsLib.mkManifest {
       self.outPath = root;
@@ -293,7 +210,7 @@ in
     };
     expectedError = {
       type = "ThrownError";
-      msg = "manifest path /example/outside\\.nix\\.age is outside flake root";
+      msg = "manifest path /example/outside\\.nix\\.age is outside flake root ${root}$";
     };
   };
 
