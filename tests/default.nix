@@ -7,8 +7,9 @@
 let
   inherit (pkgs) lib;
 
-  # The kit as the example's input: its flake and code, not its docs,
-  # so a README edit does not rebuild the integration check.
+  # The kit as the example's input: its flake and code, not its docs or
+  # dev/, which the example never reads, so neither a README edit nor a
+  # tooling change rebuilds the integration and cli checks.
   kit = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
