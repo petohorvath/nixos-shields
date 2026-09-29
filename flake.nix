@@ -7,17 +7,39 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
-    # The hooks module uses our package set; its own flake inputs are unnecessary.
-    git-hooks = {
-      url = "github:cachix/git-hooks.nix";
-      flake = false;
-    };
   };
 
   outputs =
     inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      # Every per-system and flake-level output is wired explicitly here.
-      imports = [ ./parts ];
+      # Only x86_64-linux is exercised by the checks; the rest are declared.
+      # x86_64-darwin is absent because nixpkgs dropped it in 26.11.
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
+
+      imports = [ flake-parts.flakeModules.partitions ];
+
+      partitions.dev.module = ./dev;
+
+      partitionedAttrs = {
+        checks = "dev";
+        devShells = "dev";
+        formatter = "dev";
+      };
+
+      perSystem =
+        { pkgs, ... }:
+        {
+          packages = import ./packages pkgs;
+        };
+
+      flake = {
+        lib = import ./lib;
+        nixosModules.default = ./nixos/module.nix;
+        flakeModules.default = ./flake-module.nix;
+      };
     };
 }

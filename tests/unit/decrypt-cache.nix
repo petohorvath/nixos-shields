@@ -18,7 +18,7 @@ let
     exec ${rage}/bin/rage "$@"
   '';
 
-  decrypt = callPackage ../../packages/decrypt { rage = countingRage; };
+  decrypt = callPackage ../../packages/decrypt/package.nix { rage = countingRage; };
 in
 runCommand "nixos-shields-decrypt-cache"
   {

@@ -44,7 +44,7 @@ let
   };
 
   evalShields =
-    modules: (evalModules { modules = [ ../../modules/nixos.nix ] ++ modules; }).config.age.shields;
+    modules: (evalModules { modules = [ ../../nixos/module.nix ] ++ modules; }).config.age.shields;
 
   withShields = settings: evalShields [ { age.shields = settings; } ];
 

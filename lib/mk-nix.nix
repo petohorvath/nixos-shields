@@ -22,7 +22,7 @@
 let
   inherit (pkgs.lib) escapeShellArg;
 
-  plugins = pkgs.callPackage ../packages/nix-plugins { inherit nix; };
+  plugins = pkgs.callPackage ../packages/nix-plugins/package.nix { inherit nix; };
 
   nixConfig = ''
     plugin-files = ${plugins}/lib/nix/plugins

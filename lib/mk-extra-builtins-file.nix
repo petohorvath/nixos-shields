@@ -5,6 +5,6 @@
   as `extraBuiltinsFile`.
 */
 { pkgs }:
-pkgs.callPackage ../packages/extra-builtins {
-  decrypt = pkgs.callPackage ../packages/decrypt { };
+pkgs.callPackage ../packages/extra-builtins/package.nix {
+  decrypt = pkgs.callPackage ../packages/decrypt/package.nix { };
 }

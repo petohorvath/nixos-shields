@@ -22,7 +22,6 @@
   kit,
   nixpkgs,
   flakeParts,
-  gitHooks,
 }:
 runCommand "nixos-shields-integration"
   {
@@ -34,7 +33,6 @@ runCommand "nixos-shields-integration"
     inherit
       example
       flakeParts
-      gitHooks
       kit
       libDir
       nixpkgs
@@ -120,14 +118,12 @@ runCommand "nixos-shields-integration"
     registerStorePath "$store" "$extraBuiltinsFile"
     registerStorePath "$store" "$nixpkgs"
     registerStorePath "$store" "$flakeParts"
-    registerStorePath "$store" "$gitHooks"
     registerStorePath "$store" "$kit"
 
     evalExample() {
       nixEval --no-write-lock-file \
         --override-input nixpkgs "path:$nixpkgs" \
         --override-input nixos-shields "path:$kit" \
-        --override-input nixos-shields/git-hooks "path:$gitHooks" \
         --override-input flake-parts "path:$flakeParts" \
         "path:$example#$1"
     }

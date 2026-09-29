@@ -23,7 +23,7 @@ let
   evalFlake =
     modules:
     flakeParts.lib.evalFlakeModule { inputs.self.outPath = /nix/store/example-source; } {
-      imports = [ ../../modules/flake.nix ] ++ modules;
+      imports = [ ../../flake-module.nix ] ++ modules;
     };
 
   configured = evalFlake [

@@ -12,7 +12,6 @@
   kit,
   nixpkgs,
   flakeParts,
-  gitHooks,
 }:
 runCommand "nixos-shields-cli"
   {
@@ -27,7 +26,6 @@ runCommand "nixos-shields-cli"
       kit
       nixpkgs
       flakeParts
-      gitHooks
       ;
     inherit (nix) extraBuiltinsFile;
   }
@@ -45,7 +43,6 @@ runCommand "nixos-shields-cli"
     registerStorePath "$NIX_REMOTE" "$extraBuiltinsFile"
     registerStorePath "$NIX_REMOTE" "$nixpkgs"
     registerStorePath "$NIX_REMOTE" "$flakeParts"
-    registerStorePath "$NIX_REMOTE" "$gitHooks"
     registerStorePath "$NIX_REMOTE" "$kit"
 
     # A space in the checkout name exercises path handling too.
@@ -56,7 +53,6 @@ runCommand "nixos-shields-cli"
     nix flake lock --extra-experimental-features 'nix-command flakes' \
       --override-input nixpkgs "path:$nixpkgs" \
       --override-input nixos-shields "path:$kit" \
-      --override-input nixos-shields/git-hooks "path:$gitHooks" \
       --override-input flake-parts "path:$flakeParts"
 
     ${builtins.readFile ./cli.sh}
