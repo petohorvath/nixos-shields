@@ -36,7 +36,7 @@ runCommand "nixos-shields-cli"
     export XDG_DATA_HOME=$HOME/.local/share
     export XDG_STATE_HOME=$HOME/.local/state
     export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/decrypt-cache
-    NIX_REMOTE="local?real=/nix/store&state=$TMPDIR/state"
+    NIX_REMOTE="local?real=$NIX_STORE&state=$TMPDIR/state"
     export NIX_REMOTE="$NIX_REMOTE&log=$TMPDIR/log"
     mkdir -p "$HOME"
 

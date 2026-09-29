@@ -4,8 +4,8 @@
   function on a fixture made at check time, then the example consumer
   evaluated as a flake.
 
-  The sandbox's /nix/store is group-writable, so the check opens a Nix
-  store whose physical directory is that one and whose database lives
+  The sandbox's store directory is group-writable, so the check opens a
+  Nix store whose physical directory is that one and whose database lives
   under the build directory. Paths the sandbox already holds (the kit
   and its inputs) are registered rather than copied, and the
   example's flake source lands where the decrypt script can read it:
@@ -46,7 +46,7 @@ runCommand "nixos-shields-integration"
     export XDG_DATA_HOME=$HOME/.local/share
     export XDG_STATE_HOME=$HOME/.local/state
     export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/cache
-    store="local?real=/nix/store&state=$TMPDIR/state&log=$TMPDIR/log"
+    store="local?real=$NIX_STORE&state=$TMPDIR/state&log=$TMPDIR/log"
     mkdir -p "$HOME" "$NIXOS_SHIELDS_CACHE_DIR"
     cd "$TMPDIR"
 
@@ -188,7 +188,7 @@ runCommand "nixos-shields-integration"
     # The suffix check inspects the base name, so nothing above copied
     # a shield file into the store on its own; the example's source
     # tree is the only place one may appear.
-    copies=$(find /nix/store -maxdepth 1 -name '*.nix.age')
+    copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age')
     [[ -z $copies ]] || fail "shield file copied into the eval store: $copies"
 
     touch "$out"

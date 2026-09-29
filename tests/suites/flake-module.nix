@@ -8,18 +8,25 @@
   evalFlakeModule,
   evalNixosModule,
   existingShieldPath,
+  flakeRoot,
   shieldsLib,
   ...
 }:
 let
+  root = toString flakeRoot;
+  shieldsDir = flakeRoot + "/shields";
+  identityPath = flakeRoot + "/master-identities/throwaway.txt";
+  sharedShieldPath = shieldsDir + "/shared.nix.age";
+  alphaShieldPath = shieldsDir + "/alpha.nix.age";
+
   # The pre-configured NixOS module of a flake with a directory and a
   # master identity.
   preconfiguredModule =
     (evalFlakeModule [
       {
         shields = {
-          dir = /nix/store/example-source/shields;
-          masterIdentities = [ /nix/store/example-source/master-identities/throwaway.txt ];
+          dir = shieldsDir;
+          masterIdentities = [ identityPath ];
         };
       }
     ]).shields.nixosModule;
@@ -33,11 +40,10 @@ in
 {
   testManifestRelativeLocations = {
     expr = shieldsLib.mkManifest {
-      self.outPath = /nix/store/example-source;
-      masterIdentities = [ /nix/store/example-source/master-identities/throwaway.txt ];
-      files.shared = /nix/store/example-source/shields/shared.nix.age;
-      configurations.alpha.config.age.shields.files.facts =
-        /nix/store/example-source/shields/alpha.nix.age;
+      self.outPath = flakeRoot;
+      masterIdentities = [ identityPath ];
+      files.shared = sharedShieldPath;
+      configurations.alpha.config.age.shields.files.facts = alphaShieldPath;
     };
     expected = exampleManifest;
   };
@@ -52,9 +58,9 @@ in
         ;
     };
     expected = {
-      dir = /nix/store/example-source/shields;
+      dir = shieldsDir;
       files = { };
-      masterIdentities = [ /nix/store/example-source/master-identities/throwaway.txt ];
+      masterIdentities = [ identityPath ];
       values = { };
     };
   };
@@ -63,7 +69,7 @@ in
   # twice.
   testNixosModuleImportsWithDefaultModule = {
     expr = (evalNixosModule [ preconfiguredModule ]).dir;
-    expected = /nix/store/example-source/shields;
+    expected = shieldsDir;
   };
 
   testFlakePublishesManifest = {
@@ -71,12 +77,12 @@ in
       (evalFlakeModule [
         {
           shields = {
-            masterIdentities = [ /nix/store/example-source/master-identities/throwaway.txt ];
-            files.shared = /nix/store/example-source/shields/shared.nix.age;
+            masterIdentities = [ identityPath ];
+            files.shared = sharedShieldPath;
           };
           flake.nixosConfigurations.alpha = {
             config.age.shields = {
-              files.facts = /nix/store/example-source/shields/alpha.nix.age;
+              files.facts = alphaShieldPath;
               values = throw "the manifest must not decrypt shields";
             };
           };
@@ -89,7 +95,7 @@ in
     expr =
       builtins.attrNames
         (evalFlakeModule [
-          { shields.files.shared = /nix/store/example-source/shields/shared.nix.age; }
+          { shields.files.shared = sharedShieldPath; }
         ]).shields.values;
     expected = [ "shared" ];
   };
@@ -157,7 +163,7 @@ in
   testValuesFailWithoutFile = {
     expr =
       (evalFlakeModule [
-        { shields.files.shared = /nix/store/example-source/shields/missing.nix.age; }
+        { shields.files.shared = shieldsDir + "/missing.nix.age"; }
       ]).shields.values.shared;
     expectedError = {
       type = "ThrownError";
@@ -209,7 +215,7 @@ in
         preconfiguredModule
         ({ config, ... }: { age.shields.files.facts = config.age.shields.dir + "/alpha.nix.age"; })
       ]).files.facts;
-    expected = /nix/store/example-source/shields/alpha.nix.age;
+    expected = alphaShieldPath;
   };
 
   testConfigurationsCanUseAnotherOutput = {
@@ -217,8 +223,7 @@ in
       (evalFlakeModule [
         {
           flake.nixosConfigurations.unused = throw "the default configurations must not be evaluated";
-          shields.configurations.beta.config.age.shields.files.facts =
-            /nix/store/example-source/shields/beta.nix.age;
+          shields.configurations.beta.config.age.shields.files.facts = shieldsDir + "/beta.nix.age";
         }
       ]).flake.shields.configurations;
     expected = {
@@ -227,7 +232,7 @@ in
   };
 
   testManifestDefaults = {
-    expr = shieldsLib.mkManifest { self.outPath = /nix/store/example-source; };
+    expr = shieldsLib.mkManifest { self.outPath = flakeRoot; };
     expected = {
       masterIdentities = [ ];
       files = { };
@@ -238,7 +243,7 @@ in
   testManifestIncludesUnshieldedConfigurations = {
     expr =
       (shieldsLib.mkManifest {
-        self.outPath = /nix/store/example-source;
+        self.outPath = flakeRoot;
         configurations.unshielded.config.networking.hostName = "unshielded";
       }).configurations;
     expected = {
@@ -248,9 +253,9 @@ in
 
   testManifestAcceptsAbsoluteStrings = {
     expr = shieldsLib.mkManifest {
-      self.outPath = "/nix/store/example-source";
-      masterIdentities = [ "/nix/store/example-source/master-identities/throwaway.txt" ];
-      files.shared = "/nix/store/example-source/shields/shared.nix.age";
+      self.outPath = root;
+      masterIdentities = [ (toString identityPath) ];
+      files.shared = toString sharedShieldPath;
     };
     expected = {
       masterIdentities = [ "master-identities/throwaway.txt" ];
@@ -261,18 +266,18 @@ in
 
   testManifestRejectsOtherRoots = {
     expr = shieldsLib.mkManifest {
-      self.outPath = /nix/store/example-source;
-      files.shared = /nix/store/example-source-other/shields/shared.nix.age;
+      self.outPath = flakeRoot;
+      files.shared = /example/other-flake/shields/shared.nix.age;
     };
     expectedError = {
       type = "ThrownError";
-      msg = "is outside flake root /nix/store/example-source$";
+      msg = "is outside flake root ${root}$";
     };
   };
 
   testManifestRejectsIdentityOutsideRoot = {
     expr = shieldsLib.mkManifest {
-      self.outPath = /nix/store/example-source;
+      self.outPath = flakeRoot;
       masterIdentities = [ /srv/identity.txt ];
     };
     expectedError = {
@@ -283,20 +288,20 @@ in
 
   testManifestRejectsEscapingString = {
     expr = shieldsLib.mkManifest {
-      self.outPath = "/nix/store/example-source";
-      files.shared = "/nix/store/example-source/../outside.nix.age";
+      self.outPath = root;
+      files.shared = "${root}/../outside.nix.age";
     };
     expectedError = {
       type = "ThrownError";
-      msg = "manifest path /nix/store/outside\\.nix\\.age is outside flake root";
+      msg = "manifest path /example/outside\\.nix\\.age is outside flake root";
     };
   };
 
   testManifestNormalizesStringLocations = {
     expr =
       (shieldsLib.mkManifest {
-        self.outPath = "/nix/store/example-source/.";
-        files.shared = "/nix/store/example-source/shields/nested/../shared.nix.age";
+        self.outPath = "${root}/.";
+        files.shared = "${root}/shields/nested/../shared.nix.age";
       }).files.shared;
     expected = "shields/shared.nix.age";
   };

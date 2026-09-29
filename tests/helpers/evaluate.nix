@@ -2,6 +2,7 @@
 # Each helper takes the list of modules to evaluate with.
 {
   flakeParts,
+  flakeRoot,
   lib,
   shields,
 }:
@@ -20,7 +21,7 @@ in
   # and the modules.
   evalFlakeModule =
     modules:
-    (flakeParts.lib.evalFlakeModule { inputs.self.outPath = /nix/store/example-source; } {
+    (flakeParts.lib.evalFlakeModule { inputs.self.outPath = flakeRoot; } {
       imports = [ shields.flakeModules.default ] ++ modules;
     }).config;
 }
