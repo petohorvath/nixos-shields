@@ -23,12 +23,14 @@ let
     rage
   ];
 
-  # Every path in the sandbox. Evaluating the example can add a sandbox
-  # path, such as a stdenv setup hook, to the store again; unregistered, its
-  # existing read-only copy would block the write. The builder scripts are
-  # inputs of this derivation rather than of stdenv's closure.
+  /*
+    Registration for the sandbox's inputs. Evaluating the example can add
+    one of them, such as a stdenv setup hook, to the store again; if it is
+    unregistered, its read-only copy blocks the write. The builder scripts
+    are inputs of this derivation rather than of stdenv's closure.
+  */
   builderScripts = builtins.filter builtins.isPath (runCommand "builder-scripts" { } "").args;
-  sandboxPaths = closureInfo {
+  sandboxRegistration = closureInfo {
     rootPaths = map (path: "${path}") (
       [
         stdenvNoCC
@@ -60,9 +62,9 @@ runCommand "nixos-shields-cli"
     export NIX_REMOTE="$NIX_REMOTE&log=$TMPDIR/log"
     mkdir -p "$HOME"
 
-    # Make the sandbox paths known to the evaluation store without taking
+    # Make the sandbox inputs known to the evaluation store without taking
     # ownership of them.
-    nix-store --store "$NIX_REMOTE" --load-db < ${sandboxPaths}/registration
+    nix-store --store "$NIX_REMOTE" --load-db < ${sandboxRegistration}/registration
 
     # A space in the checkout name exercises path handling too.
     consumer="$TMPDIR/example consumer"

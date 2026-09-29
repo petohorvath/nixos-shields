@@ -300,7 +300,7 @@ The development shell provides the kit's wrapped Nix, nix-unit, the formatter, t
 
 Format with `nix fmt`. The `formatting` check fails when the formatter would change a file, and the `lint` check runs statix, deadnix, shellcheck, and actionlint; both run in `nix flake check`.
 
-CI calls the shared [project policy](https://github.com/petohorvath/nixos-project-policy) workflow at `v0.5`, on x86_64-linux and aarch64-linux. It checks the flake's inputs and public outputs, starts the development shell, evaluates the formatter, and runs `nix flake check` with the locked nixpkgs and with the policy's stable and unstable nixpkgs pins. The policy's README lists the required statuses and the commands that run the same checks locally.
+CI calls the shared [project policy](https://github.com/petohorvath/nixos-project-policy) workflow at `v0.5`, on x86_64-linux and aarch64-linux. It checks the flake's inputs and public outputs, starts the development shell, evaluates the formatter, and runs `nix flake check` with the locked nixpkgs and with the policy's stable and unstable nixpkgs pins. The policy lists the [required statuses](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md#caller), and its [local check](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/README.md#local-check) runs the same checks from the repo root.
 
 ## Checks
 
