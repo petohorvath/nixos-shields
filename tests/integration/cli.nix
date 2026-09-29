@@ -23,9 +23,9 @@ runCommand "nixos-shields-cli"
     ];
     inherit
       example
+      flakeParts
       kit
       nixpkgs
-      flakeParts
       ;
     inherit (nix) extraBuiltinsFile;
   }

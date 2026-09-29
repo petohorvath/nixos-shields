@@ -7,7 +7,19 @@
   runCommand,
 }:
 let
-  sourceDir = lib.cleanSource ../.;
+  # The suites' sources, not the docs, so a README edit does not rebuild
+  # this check.
+  sourceDir = lib.fileset.toSource {
+    root = ../.;
+    fileset = lib.fileset.unions [
+      ../examples/consumer/shields
+      ../flake.nix
+      ../flake-module.nix
+      ../lib
+      ../nixos
+      ../tests
+    ];
+  };
 
   # Reconstruct inputs from store paths so the sandbox fetches no flakes.
   evaluationInputsPath = builtins.toFile "nixos-shields-test-inputs.nix" ''
