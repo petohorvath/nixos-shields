@@ -20,6 +20,10 @@ in
   nixpkgs ? rootInputs.nixpkgs,
   flakeParts ? flakePartsFor nixpkgs,
 }:
-import ./suites {
+let
   testContext = import ./helpers/test-context.nix { inherit flakeParts nixpkgs; };
+in
+{
+  flakeModule = import ./suites/flake-module.nix testContext;
+  nixosModule = import ./suites/nixos-module.nix testContext;
 }
