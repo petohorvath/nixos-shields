@@ -8,7 +8,7 @@ A shield is not a secret. Its decrypted values land in the Nix store of every ma
 
 ## Shields
 
-A shield is a Nix expression stored age-encrypted in git and decrypted when Nix evaluates it. Its file name ends in `.nix.age`. It is encrypted to every master identity of the repository (a YubiKey plugin identity, an SSH key, or a plain age key), so any one of them can open it. [CONTEXT.md](CONTEXT.md) holds the full glossary; [ADR 0001](docs/adr/0001-eval-time-decryption-via-exec-builtin.md) records why decryption happens at evaluation time.
+A shield is a Nix expression stored age-encrypted in git and decrypted when Nix evaluates it. Its file name ends in `.nix.age`. It is encrypted to every master identity of the repository (a YubiKey plugin identity, an SSH key, or a plain age key), so any one of them can open it. [GLOSSARY.md](GLOSSARY.md) holds the full glossary; [ADR 0001](docs/adr/0001-eval-time-decryption-via-exec-builtin.md) records why decryption happens at evaluation time.
 
 ## Supported Nix version and plugin ABI
 
@@ -290,7 +290,7 @@ The `/var/tmp` default is a provisional choice: it survives reboots, which is wh
 
 ## Contributing
 
-Read the [glossary](CONTEXT.md) and relevant [ADRs](docs/adr/) before changing code; [AGENTS.md](AGENTS.md) points to the contributor workflows. User-visible changes belong in the topmost, unreleased section of [CHANGELOG.md](CHANGELOG.md). Its heading names the next version, which must be a minor or major bump when a change removes a public output.
+Read the [glossary](GLOSSARY.md) and relevant [ADRs](docs/adr/) before changing code; [AGENTS.md](AGENTS.md) points to the contributor workflows. User-visible changes belong in the topmost, unreleased section of [CHANGELOG.md](CHANGELOG.md). Its heading names the next version, which must be a minor or major bump when a change removes a public output.
 
 ```sh
 nix develop

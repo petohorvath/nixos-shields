@@ -2,10 +2,6 @@
 
 ## Agent skills
 
-### Domain docs
-
-Before exploring or changing code, read the glossary in [CONTEXT.md](CONTEXT.md) and the relevant [ADRs](docs/adr/). Read [domain guidance](docs/agents/domain.md) for vocabulary requirements and ADR conflict handling.
-
 ### Issue tracker
 
 Before working with issues or specs, read the [issue tracker workflow](docs/agents/issue-tracker.md). Issues are tracked as GitHub Issues via the `gh` CLI.
@@ -13,6 +9,10 @@ Before working with issues or specs, read the [issue tracker workflow](docs/agen
 ### Triage labels
 
 Before triaging issues or applying triage roles, read the [triage label mapping](docs/agents/triage-labels.md). Use the canonical role-to-label mapping defined there.
+
+### Domain docs
+
+Before exploring or changing code, read the glossary in [GLOSSARY.md](GLOSSARY.md) and the relevant [ADRs](docs/adr/). Read [domain guidance](docs/agents/domain.md) for vocabulary requirements and ADR conflict handling.
 
 ## Development and validation
 
