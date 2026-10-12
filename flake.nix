@@ -2,7 +2,7 @@
   description = "Shields: evaluation-time encrypted Nix expressions";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
@@ -13,7 +13,7 @@
     inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       # CI checks both Linux systems; aarch64-darwin is declared only.
-      # x86_64-darwin is absent because nixpkgs dropped it in 26.11.
+      # x86_64-darwin is absent because nixpkgs drops it in 26.11.
       systems = [
         "x86_64-linux"
         "aarch64-linux"
