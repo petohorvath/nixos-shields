@@ -14,7 +14,7 @@ A shield is a Nix expression stored age-encrypted in git and decrypted when Nix 
 
 The shield builtin is provided by [nix-plugins](https://github.com/shlevy/nix-plugins), which must be compiled against the exact Nix that loads it. The kit builds it against the Nix 2.34 series from nixpkgs (`nixVersions.nix_2_34`). This ABI requirement is why the kit supplies a wrapped Nix together with the matching plugin, rather than loading the plugin into an arbitrary system Nix. A [compatibility patch](packages/nix-plugins/nix-2.34.patch) is carried in-kit until an upstream nix-plugins release builds against that Nix. A newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
 
-CI runs the checks on x86_64-linux and aarch64-linux; outputs are declared for aarch64-darwin as well, but CI does not test it. x86_64-darwin is not declared, as nixpkgs dropped it in 26.11.
+CI runs the checks on x86_64-linux and aarch64-linux; outputs are declared for aarch64-darwin as well, but CI does not test it. x86_64-darwin is not declared, as nixpkgs drops it in 26.11.
 
 ## Wrapped Nix
 
@@ -104,7 +104,7 @@ For a plain flake, the following `flake.nix` wires the module and publishes the 
 
 ```nix
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   inputs.nixos-shields.url = "github:petohorvath/nixos-shields";
   inputs.nixos-shields.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -156,7 +156,7 @@ For a flake-parts consumer, this `flake.nix` declares both scopes. Supply your o
 ```nix
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
     nixos-shields.url = "github:petohorvath/nixos-shields";
