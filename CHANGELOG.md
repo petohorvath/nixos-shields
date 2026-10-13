@@ -12,7 +12,7 @@
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are flake checks, run by `nix flake check` and CI.
 - The `nixpkgs` input tracks `nixos-26.05` instead of `nixos-unstable`, locked to the nixos-project-policy v0.5.1 stable pin; consumers that do not make it follow their own nixpkgs get the stable release. x86_64-darwin stays undeclared.
-- CI calls the shared project policy `v0.6` workflow instead of its own. It runs on x86_64-linux and aarch64-linux and tests the locked nixpkgs and the policy's stable and unstable pins; the required statuses become `Policy / Check (<system>)` and `Policy / Tests (locked|stable|unstable, <system>)`. There are no VM tests, so no `Policy / VM tests (<nixpkgs>, <system>)` status is required.
+- CI calls the shared project policy `v0.6` workflow instead of its own. It runs on x86_64-linux and aarch64-linux and tests the locked nixpkgs and the policy's stable and unstable pins; the required statuses become `Policy / Check (<system>)` and `Policy / Tests (locked|stable|unstable, <system>)`. There are no VM tests, so no `Policy / VM tests (locked|stable|unstable, <system>)` status is required.
 
 ### Removed
 
