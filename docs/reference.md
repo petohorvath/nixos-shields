@@ -4,6 +4,8 @@ The flake's public interface: its outputs, library functions, module options, an
 
 ## Flake outputs
 
+The table lists the consumer-facing outputs. The `checks`, `devShells`, and `formatter` outputs come from the `dev` flake-parts partition and serve development only.
+
 | Output | Content |
 | --- | --- |
 | `lib.importShield` | Decrypts one shield file |
@@ -22,7 +24,7 @@ The flake's public interface: its outputs, library functions, module options, an
 
 ### `lib.importShield`
 
-`importShield identities file` decrypts `file` with any of the master identity files in the list `identities` and returns the value of the Nix expression it holds. Before decrypting, it fails with a message naming the file when the file does not exist, when the identity list is empty, or when the running Nix lacks the builtin.
+`importShield identities file` decrypts `file` with any of the master identity files in the list `identities` and returns the value of the Nix expression it holds. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
 
 ```nix
 nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/beta.nix.age
@@ -138,6 +140,6 @@ A [compatibility patch](../packages/nix-plugins/nix-2.34.patch) is carried in th
 
 ## Decrypt cache
 
-Each decrypt cache entry is keyed by the shield file's content hash and base name, so an unchanged file is never decrypted again wherever it lives, and a changed file gets a new entry. The cache directory is created with mode 0700 and refused when another user owns it. Decryption writes a partial file beside the entry and moves it into place, so an interrupted decryption never leaves a truncated entry.
+Each decrypt cache entry is keyed by the shield file's content hash and base name, so an unchanged file is not decrypted again, even when a copy with the same base name lives elsewhere, and a changed file gets a new entry that coexists with the old one until the decrypt cache is removed. The decrypt cache directory is created with mode 0700 and refused when another user owns it. Decryption writes a partial file beside the entry and moves it into place, so an interrupted decryption never leaves a truncated entry.
 
 The directory defaults to `/var/tmp/nixos-shields-<uid>`, and `NIXOS_SHIELDS_CACHE_DIR` overrides it.

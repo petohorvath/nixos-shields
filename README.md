@@ -41,7 +41,7 @@ Before declaring shields, commit at least one master identity file under the fla
 
 ## Usage
 
-The [example consumer](examples/consumer) holds a flake-scoped shield, a configuration `alpha` with its own shield, and a configuration `beta` whose shield file is deliberately missing. Its master identity is a committed throwaway key that protects nothing. From a checkout of this repository, the wrapped Nix reads `alpha`'s decrypted shield:
+The [example consumer](examples/consumer) holds a flake-scoped shield, a configuration `alpha` with its own shield, and a configuration `beta` whose shield file is deliberately missing. Its master identity is a committed throwaway identity that protects nothing. From a checkout of this repository, the wrapped Nix reads `alpha`'s decrypted shield:
 
 ```console
 $ nix run .#nix -- eval --json --no-write-lock-file \
@@ -63,7 +63,7 @@ Configuration-scoped shields (beta):
 Total: 3; exists: 2; missing: 1
 ```
 
-The [example README](examples/consumer/README.md) describes its layout and the other attributes to evaluate.
+The example's `nixos-shields` input is not locked, so the tool evaluates the example's manifest against the published kit and needs network access. The [example README](examples/consumer/README.md) describes its layout and the other attributes to evaluate.
 
 ## Declare shields in a flake
 
@@ -152,6 +152,7 @@ The shield file need not exist yet: `nixos-shields edit alpha:facts` creates it.
           files.shared = ./shields/shared.nix.age;
         };
 
+        flake.sharedShield = config.shields.values.shared;
         flake.nixosConfigurations.alpha = nixpkgs.lib.nixosSystem {
           modules = [
             config.shields.nixosModule
@@ -206,29 +207,27 @@ pkgs.mkShellNoCC {
 }
 ```
 
-The recipe overrides the nixpkgs packages; a tool's own flake may expose different override arguments. `lib.mkNix` also accepts extra `nix.conf` lines and a combined extra-builtins file for consumers with builtins of their own, as described in [Wrapped Nix](docs/reference.md#wrapped-nix).
+Keep these overrides in the consumer; they are not kit outputs. The recipe overrides the nixpkgs packages; a tool's own flake may expose different override arguments. `lib.mkNix` also accepts extra `nix.conf` lines and a combined extra-builtins file for consumers with builtins of their own, as described in [Wrapped Nix](docs/reference.md#wrapped-nix).
 
 ## Decrypt cache
 
-Decrypted shields are cached per user, so an unchanged shield is not decrypted again, and a hardware identity not prompted again, on every evaluation. The cache lives at `/var/tmp/nixos-shields-<uid>` and holds plaintext readable to the account that owns it. `NIXOS_SHIELDS_CACHE_DIR` moves it, for example to a tmpfs:
+Decrypted shields are kept in a per-user decrypt cache, so an unchanged shield is not decrypted again, and a hardware identity not prompted again, on every evaluation. The decrypt cache lives at `/var/tmp/nixos-shields-<uid>` and holds plaintext readable to the account that owns it. `NIXOS_SHIELDS_CACHE_DIR` moves it, for example to a tmpfs:
 
 ```sh
 NIXOS_SHIELDS_CACHE_DIR=/run/user/1000/nixos-shields \
   nix build .#nixosConfigurations.alpha.config.system.build.toplevel
 ```
 
-`nixos-shields clean` removes the cache. A changed shield file gets a new entry, and old entries remain until the cache is removed.
+`nixos-shields clean` removes the decrypt cache. [Decrypt cache](docs/reference.md#decrypt-cache) describes how entries are keyed.
 
 ## Limitations
 
-- Shield values are readable in the Nix store and the decrypt cache; shields cannot hold runtime credentials.
 - The default decrypt cache in `/var/tmp` survives reboots, which keeps a hardware identity from prompting again, at the cost of plaintext outliving the session. The default is provisional and may change.
-- Evaluation requires the kit's wrapped Nix 2.34. The nix-plugins build carries an [in-kit compatibility patch](packages/nix-plugins/nix-2.34.patch) for that series.
 - A former master identity can still decrypt the shield file versions in git history.
 
 ## Contributing
 
-Report bugs and ask questions in [GitHub Issues](https://github.com/petohorvath/nixos-shields/issues). [AGENTS.md](AGENTS.md) lists the development setup, required checks, and changelog policy, and [docs/testing.md](docs/testing.md) describes what each check covers.
+Report bugs and ask questions in [GitHub Issues](https://github.com/petohorvath/nixos-shields/issues). Pull requests target `main` and are squash-merged after the CI checks pass and a maintainer approves. [AGENTS.md](AGENTS.md) lists the development setup, required checks, and changelog policy, and [docs/testing.md](docs/testing.md) describes what each check covers.
 
 ## License
 

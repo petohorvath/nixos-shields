@@ -33,7 +33,7 @@ nix-unit tests/entrypoint.nix --attr nixosModule   # one suite
 nix flake check                                    # every check
 ```
 
-CI calls the shared [project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md#caller) workflow at `v0.5` from [`.github/workflows/check.yml`](.github/workflows/check.yml). On x86_64-linux and aarch64-linux, it checks the flake's inputs and public outputs, starts the development shell, evaluates the formatter, and runs `nix flake check` with the locked nixpkgs and with the policy's stable and unstable pins. To run the same checks locally from the repository root:
+CI calls the shared [project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md#caller) workflow at `v0.5` from [`.github/workflows/check.yml`](.github/workflows/check.yml). On x86_64-linux and aarch64-linux, it checks the flake's inputs and public outputs, starts the development shell, evaluates the formatter, and runs `nix flake check` with the locked nixpkgs and with the policy's stable and unstable pins. The policy lists the required statuses; a pull request merges only after they pass. To run the same checks locally from the repository root, as the policy's [local check](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/README.md#local-check) describes:
 
 ```sh
 nix run github:petohorvath/nixos-project-policy/v0.5 -- check .

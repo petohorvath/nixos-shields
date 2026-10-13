@@ -29,6 +29,7 @@ An address is a bare name for a flake-scoped shield, such as `shared`, or `<conf
 nixos-shields list
 nixos-shields list --json
 nixos-shields list --configuration alpha
+nixos-shields --flake ../fleet list --configuration alpha --json
 ```
 
 `list` groups shields by scope and shows each address, file location, `exists` or `missing` status, and totals. `--configuration <name>` includes only that configuration's shields and fails for an unknown configuration. Listing does not decrypt shields, so it reports missing files too.
@@ -71,4 +72,4 @@ An old identity loses access to the current shield files only once it leaves the
 nixos-shields clean
 ```
 
-`clean` removes the current user's [decrypt cache](reference.md#decrypt-cache), honouring `NIXOS_SHIELDS_CACHE_DIR`. It works outside a flake and does not evaluate a manifest. It refuses a cache directory that is a symlink, is not owned by the current user, lies in `/nix/store`, or contains `/`, the home directory, the current directory, or the selected flake.
+`clean` removes the current user's [decrypt cache](reference.md#decrypt-cache), honouring `NIXOS_SHIELDS_CACHE_DIR`. It works outside a flake and does not evaluate a manifest. It refuses a decrypt cache directory that is a symlink, is not owned by the current user, lies in `/nix/store`, or contains `/`, the home directory, the current directory, or the selected flake.

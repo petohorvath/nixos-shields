@@ -7,7 +7,7 @@
 | `integration` | The wrapped Nix inside the build sandbox |
 | `cli` | The packaged command-line tool against the example consumer |
 | `tests` | The nix-unit suites under `tests/suites` |
-| `decrypt-cache` | The decrypt cache script |
+| `decrypt-cache` | The decrypt script and its decrypt cache |
 | `formatting` | Whether the formatter would change a file |
 | `lint` | statix, deadnix, shellcheck, and actionlint |
 
@@ -35,7 +35,7 @@ The check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites 
 
 ## `decrypt-cache`
 
-The check drives the cache script directly with a throwaway master identity and a counting wrapper in place of `rage`. It asserts that a miss decrypts, that a hit does not, including for a copy of the same file elsewhere, that a changed file gets its own entry, that `--print-out-path` names the entry, and that `NIXOS_SHIELDS_CACHE_DIR` moves the directory.
+The check drives the decrypt script directly with a throwaway master identity and a counting wrapper in place of `rage`. It asserts that a miss decrypts, that a hit does not, including for a copy of the same file elsewhere, that a changed file gets its own entry, that `--print-out-path` names the entry, and that `NIXOS_SHIELDS_CACHE_DIR` moves the directory.
 
 ## `formatting` and `lint`
 
