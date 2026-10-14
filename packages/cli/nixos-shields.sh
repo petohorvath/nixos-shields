@@ -102,17 +102,15 @@ if [[ -n $configuration ]]; then
   jq -e --arg name "$configuration" '.configurations | has($name)' <<< "$manifest" > /dev/null \
     || die "unknown configuration: $configuration"
   manifest=$(jq --arg name "$configuration" '
-    .files = {} | .configurations |= with_entries(select(.key == $name))
+    .configurations |= with_entries(select(.key == $name))
   ' <<< "$manifest")
 fi
 
 shields=$(jq '[
-  (.files | to_entries[] |
-    {address: .key, configuration: null, name: .key, file: .value}),
-  (.configurations | to_entries[] | .key as $configuration |
+  .configurations | to_entries[] | .key as $configuration |
     .value.files | to_entries[] |
     {address: ($configuration + ":" + .key), configuration: $configuration,
-      name: .key, file: .value})
+      name: .key, file: .value}
 ]' <<< "$manifest")
 
 if [[ $command_name == list ]]; then
@@ -124,10 +122,9 @@ if [[ $command_name == list ]]; then
       jq --arg status "$status" '. + {status: $status}' <<< "$shield"
     done < <(jq -c '.[]' <<< "$shields") \
       | jq -s --argjson configurations "$(jq '.configurations | map_values({files: {}})' <<< "$manifest")" '
-        reduce .[] as $shield ({files: {}, configurations: $configurations};
-          {file: $shield.file, status: $shield.status} as $entry |
-          if $shield.configuration == null then .files[$shield.name] = $entry
-          else .configurations[$shield.configuration].files[$shield.name] = $entry end
+        reduce .[] as $shield ({configurations: $configurations};
+          .configurations[$shield.configuration].files[$shield.name] =
+            {file: $shield.file, status: $shield.status}
         ) as $groups |
         $groups + {totals: {total: length,
           exists: (map(select(.status == "exists")) | length),
@@ -139,12 +136,8 @@ if [[ $command_name == list ]]; then
     echo "$listing"
   else
     jq -r '
-      (if (.files | length) > 0 then
-        "Flake-scoped shields:",
-        (.files | to_entries[] | "  \(.key) [\(.value.status)] \(.value.file)")
-      else empty end),
       (.configurations | to_entries[] |
-        "Configuration-scoped shields (\(.key)):",
+        "Configuration \(.key):",
         (.key as $configuration | .value.files | to_entries[] |
           "  \($configuration):\(.key) [\(.value.status)] \(.value.file)")),
       "Total: \(.totals.total); exists: \(.totals.exists); missing: \(.totals.missing)"
