@@ -21,7 +21,7 @@ The tool runs against the flake in the current directory, or against `--flake <d
 
 ## Addresses
 
-An address is a bare name for a flake-scoped shield, such as `shared`, or `<configuration>:<name>` for a configuration-scoped shield, such as `alpha:facts`. Names and file locations come from the manifest, so declare a shield in the flake before editing it.
+An address is `<configuration>:<name>`, such as `alpha:facts`. A bare name is an unknown address. Names and file locations come from the manifest, so declare a shield in a configuration before editing it. A shield file that several configurations declare has an address in each, such as `alpha:shared` and `beta:shared`, and editing it through any of them changes it for all.
 
 ## `list`
 
@@ -32,21 +32,21 @@ nixos-shields list --configuration alpha
 nixos-shields --flake ../fleet list --configuration alpha --json
 ```
 
-`list` groups shields by scope and shows each address, file location, `exists` or `missing` status, and totals. `--configuration <name>` includes only that configuration's shields and fails for an unknown configuration. Listing does not decrypt shields, so it reports missing files too.
+`list` groups shields by configuration and shows each address, file location, `exists` or `missing` status, and totals. `--configuration <name>` includes only that configuration's shields and fails for an unknown configuration. Listing does not decrypt shields, so it reports missing files too. Totals count addresses, so a shield file that two configurations declare counts twice.
 
-`--json` prints `files` and `configurations` groups that match the manifest, with each file as `{"file":"shields/alpha.nix.age","status":"exists"}`, and a `totals` object with `total`, `exists`, and `missing` counts.
+`--json` prints a `configurations` group that matches the manifest, with each file as `{"file":"shields/alpha.nix.age","status":"exists"}`, and a `totals` object with `total`, `exists`, and `missing` counts.
 
 ## `edit`
 
 ```sh
-EDITOR=vim nixos-shields edit shared
+EDITOR=vim nixos-shields edit beta:shared
 EDITOR='code --wait' nixos-shields edit alpha:facts
 ```
 
 `edit` decrypts the shield into a private temporary directory outside the checkout, runs `$EDITOR` as a Bash command with the plaintext file appended, and removes the directory on exit. Set `EDITOR` to a command that waits until editing finishes. The temporary directory follows `TMPDIR`; the tool refuses one inside the checkout.
 
 - An unchanged edit leaves the shield file byte-identical.
-- A changed edit encrypts to every master identity in the manifest, the flake-wide ones and those of every configuration, and replaces the shield file only after encryption succeeds.
+- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
 
@@ -61,7 +61,7 @@ nixos-shields rekey --identity /path/to/previous-identity.txt
 
 To rotate master identities:
 
-1. Change the declared master identity lists, flake-wide and in every configuration, to the new identities.
+1. Change the master identity list of every configuration to the new identities.
 2. Run `nixos-shields rekey --identity <old-identity>` with an old identity that is still available.
 
 An old identity loses access to the current shield files only once it leaves every declared list. It can still decrypt earlier versions in git history.

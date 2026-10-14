@@ -1,8 +1,8 @@
 /*
-  A flake-parts consumer with a flake-scoped shield shared by two
-  configurations. Each configuration declares its own shield using
-  the directory and identities from the pre-configured NixOS module.
-  `beta`'s shield file is deliberately missing.
+  A flake-parts consumer with two configurations that share one shield
+  file. A module common to both declares the shield directory and the
+  master identity. `beta`'s own shield file is deliberately missing, and
+  `deploy` reads `alpha`'s shield value from outside the configuration.
 */
 {
   description = "Example consumer of nixos-shields";
@@ -30,25 +30,40 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       { config, ... }:
       let
-        inherit (nixpkgs.lib) genAttrs nixosSystem;
-        shared = config.shields.values.shared;
+        inherit (nixpkgs.lib) genAttrs mapAttrs nixosSystem;
 
-        # Every configuration reads its shield from `<dir>/<name>.nix.age`.
+        # Settings every configuration shares, as with agenix-rekey's
+        # age.rekey.masterIdentities.
+        commonModule = {
+          imports = [ nixos-shields.nixosModules.default ];
+          age.shields = {
+            dir = ./shields;
+            masterIdentities = [ ./master-identities/throwaway.txt ];
+          };
+        };
+
+        # Every configuration reads its own shield from
+        # `<dir>/<name>.nix.age` and the shared one from
+        # `<dir>/shared.nix.age`.
         mkConfiguration =
           name:
           nixosSystem {
             modules = [
-              config.shields.nixosModule
+              commonModule
               (
                 { config, ... }:
                 {
-                  age.shields.files.facts = config.age.shields.dir + "/${name}.nix.age";
+                  age.shields.files = {
+                    facts = config.age.shields.dir + "/${name}.nix.age";
+                    shared = config.age.shields.dir + "/shared.nix.age";
+                  };
 
-                  # Both scopes supply ordinary configuration once decrypted.
+                  # Both shields supply ordinary configuration once
+                  # decrypted.
                   networking = {
                     hostName = name;
                     domain = config.age.shields.values.facts.domain;
-                    search = [ shared.domain ];
+                    search = [ config.age.shields.values.shared.domain ];
                   };
 
                   nixpkgs.hostPlatform = "x86_64-linux";
@@ -62,15 +77,13 @@
         imports = [ nixos-shields.flakeModules.default ];
         systems = [ ];
 
-        shields = {
-          dir = ./shields;
-          masterIdentities = [ ./master-identities/throwaway.txt ];
-          files.shared = ./shields/shared.nix.age;
-        };
-
-        # This value is readable before either configuration evaluates.
-        flake.sharedShield = shared;
         flake.nixosConfigurations = genAttrs [ "alpha" "beta" ] mkConfiguration;
+
+        # A configuration's shield values are readable from outside it,
+        # here in the shape deploy-rs reads its targets from.
+        flake.deploy.nodes = mapAttrs (_: configuration: {
+          hostname = configuration.config.age.shields.values.facts.domain;
+        }) config.flake.nixosConfigurations;
       }
     );
 }

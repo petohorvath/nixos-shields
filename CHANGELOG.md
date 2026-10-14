@@ -9,7 +9,8 @@
 
 ### Changed
 
-- The manifest's `masterIdentities`, from `lib.mkManifest` and `flakeModules.default`, combines the flake-wide list with every configuration's `age.shields.masterIdentities`, each identity once. `nixos-shields edit` and `rekey` encrypt every shield to all of them, so a configuration that declares an identity missing from the flake-wide list can read its shields after an edit.
+- Every shield belongs to a configuration, and every configuration declares its own master identities, as with agenix-rekey. The manifest's `masterIdentities`, from `lib.mkManifest` and `flakeModules.default`, combines every configuration's `age.shields.masterIdentities`, each identity once, and `nixos-shields edit` and `rekey` encrypt every shield to all of them. Share master identities through a NixOS module imported by each configuration, share data by declaring one shield file in several configurations, and read a configuration's values from outside it through `nixosConfigurations.<name>.config.age.shields.values`.
+- `nixos-shields list` headings name each configuration as `Configuration <name>:`.
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are flake checks, run by `nix flake check` and CI.
 - The `nixpkgs` input tracks `nixos-26.05` instead of `nixos-unstable`, locked to the nixos-project-policy v0.5.1 stable pin; consumers that do not make it follow their own nixpkgs get the stable release. x86_64-darwin stays undeclared.
@@ -20,10 +21,11 @@
 - The `flakeModule` output; import `flakeModules.default` instead.
 - The `git-hooks` input; drop any follows or overrides of `nixos-shields/git-hooks`.
 - The development-shell Git hooks.
-
-### Fixed
-
-- Importing both `shields.nixosModule` and `nixosModules.default` into one configuration no longer fails with an option declared twice.
+- Flake-scoped shields. `flakeModules.default` loses the `shields.dir`, `shields.masterIdentities`, `shields.files`, `shields.values`, and `shields.nixosModule` options; import `nixosModules.default` in each configuration instead, and keep `shields.configurations`.
+- The `masterIdentities` and `files` arguments of `lib.mkManifest`, which now takes only `self` and `configurations`.
+- The manifest's top-level `files` field.
+- Bare `<name>` addresses in `nixos-shields`; address every shield as `<configuration>:<name>`.
+- The flake-scoped group of `nixos-shields list`, in its text output and the `files` field of its JSON output.
 
 ## 0.1.0 - 2026-09-14
 
