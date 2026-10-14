@@ -5,7 +5,7 @@ Evaluation-time encrypted Nix expressions that keep personally identifiable conf
 ## Language
 
 **Shield**:
-A Nix expression stored encrypted in git and decrypted when Nix evaluates it. Its values are ordinary configuration, not credentials: they end up readable in the Nix store.
+A Nix expression stored encrypted in git and decrypted when Nix evaluates it. Every shield belongs to a configuration. Its values are ordinary configuration, not credentials: they end up readable in the Nix store.
 _Avoid_: Secret, evaluation-time secret, encrypted config
 
 **Shield file**:
@@ -17,31 +17,19 @@ A runtime credential (password, token, private key) that must never reach the Ni
 _Avoid_: Using "secret" for anything a shield holds
 
 **Master identity**:
-An age identity file able to decrypt every shield in a repository. A YubiKey plugin identity stub, an SSH key, or a plain age key. Shields are encrypted to all master identities, so any one of them can open any shield.
+An age identity file able to decrypt every shield in a repository: a YubiKey plugin identity stub, an SSH key, or a plain age key. Each configuration declares its own, and every shield is encrypted to those of all configurations combined, so any one of them can open any shield.
 _Avoid_: Key, recipient, pubkey
-
-**Scope**:
-Where a shield is attached. A shield is either flake-scoped or configuration-scoped.
-_Avoid_: Level, kind, global, local
-
-**Flake-scoped shield**:
-A shield attached to the flake as a whole, readable before any configuration is evaluated.
-_Avoid_: Global shield, global
-
-**Configuration-scoped shield**:
-A shield attached to one configuration (a NixOS system), readable only through that configuration's options.
-_Avoid_: Local shield, local, host shield, node shield
 
 **Configuration**:
 An evaluated NixOS system that can own shields. The consumer decides which attribute set holds them.
 _Avoid_: Host, node, machine
 
 **Manifest**:
-The flake's declared inventory of shields: master identities, flake-scoped shield files, and each configuration's shield files, with file locations relative to the flake root.
+The flake's declared inventory of shields: the master identities of all configurations combined and each configuration's shield files, with file locations relative to the flake root.
 _Avoid_: Index, registry, catalogue
 
 **Address**:
-The name by which a shield is referred to on the command line: its name for a flake-scoped shield, `<configuration>:<name>` for a configuration-scoped one.
+The name by which a shield is referred to on the command line: `<configuration>:<name>`. A shield file declared by several configurations has one address in each.
 _Avoid_: Path, identifier, id
 
 **Decrypt cache**:

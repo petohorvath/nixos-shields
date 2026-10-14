@@ -5,24 +5,19 @@
   Inputs:
     self: the consumer's flake, or anything whose outPath or string
       form is the absolute flake root.
-    masterIdentities: the flake-wide master identity files, a list of
-      paths or absolute strings; defaults to [ ].
-    files: the flake-scoped shield files by name; defaults to { }.
     configurations: evaluated configurations by name; each contributes
       its config.age.shields.files and masterIdentities, or none without
       the shields module. Defaults to { }.
 
-  Returns { masterIdentities, files, configurations.<name>.files } with
-  every location a string relative to the flake root, for use in a
-  writable checkout. A location outside the root fails evaluation.
-  masterIdentities combines the flake-wide list with every
-  configuration's, in that order and by configuration name, each
-  identity once, so the tool encrypts every shield to all of them.
+  Returns { masterIdentities, configurations.<name>.files } with every
+  location a string relative to the flake root, for use in a writable
+  checkout. A location outside the root fails evaluation.
+  masterIdentities combines every configuration's list in configuration
+  name order, each identity once, so the tool encrypts every shield to
+  all of them.
 */
 {
   self,
-  masterIdentities ? [ ],
-  files ? { },
   configurations ? { },
 }:
 let
@@ -61,8 +56,6 @@ let
     else
       throw "nixos-shields: manifest path ${location} is outside flake root ${root}";
 
-  relativeFiles = mapAttrs (_: relative);
-
   # Keeps the first occurrence of each location.
   unique = foldl' (kept: location: if elem location kept then kept else kept ++ [ location ]) [ ];
 
@@ -71,9 +64,8 @@ let
   ) (attrValues configurations);
 in
 {
-  masterIdentities = unique (map relative (masterIdentities ++ configurationIdentities));
-  files = relativeFiles files;
+  masterIdentities = unique (map relative configurationIdentities);
   configurations = mapAttrs (_: configuration: {
-    files = relativeFiles (configuration.config.age.shields.files or { });
+    files = mapAttrs (_: relative) (configuration.config.age.shields.files or { });
   }) configurations;
 }

@@ -54,15 +54,11 @@ The result's `passthru` holds `extraBuiltinsFile`, `nix`, and `plugins`.
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `self` | required | The consumer's flake, whose root anchors every location |
-| `masterIdentities` | `[ ]` | Flake-wide master identity files |
-| `files` | `{ }` | Flake-scoped shield files by name |
 | `configurations` | `{ }` | Evaluated configurations by name; each contributes its `config.age.shields.files` and `masterIdentities` |
 
 ```nix
 shields = nixos-shields.lib.mkManifest {
   inherit self;
-  masterIdentities = [ ./master-identities/yubikey-1.txt ];
-  files.shared = ./shields/shared.nix.age;
   configurations = self.nixosConfigurations;
 };
 ```
@@ -75,39 +71,37 @@ shields = nixos-shields.lib.mkManifest {
 | --- | --- | --- | --- |
 | `age.shields.masterIdentities` | list of paths | `[ ]` | Age identity files, any one of which can decrypt every shield of the configuration. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to. |
 | `age.shields.dir` | path | none | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it. |
-| `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. |
+| `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. Several configurations can declare the same file, which then has an address in each. |
 | `age.shields.values` | attribute set, read-only | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it. |
+
+Configurations share `dir` and `masterIdentities` through a module of the consumer's own, imported by each of them. A flake that also uses agenix-rekey can assign `age.shields.masterIdentities = config.age.rekey.masterIdentities` there. Outside a configuration, its values are readable as `nixosConfigurations.<name>.config.age.shields.values`, for example to give a deploy-rs node its hostname.
 
 ## flake-parts module
 
-`flakeModules.default` declares flake-scoped shields, shares defaults with configurations, and publishes the manifest as the `shields` flake output. It uses the libraries supplied by the consumer's flake-parts and introduces no flake input.
+`flakeModules.default` publishes the manifest as the `shields` flake output. It uses the libraries supplied by the consumer's flake-parts and introduces no flake input. Configurations import `nixosModules.default` themselves.
 
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `shields.dir` | path | none | Shield directory, passed to the pre-configured NixOS module. |
-| `shields.masterIdentities` | list of paths | `[ ]` | Identities used for flake-scoped shields and as configuration defaults. |
-| `shields.files` | attribute set of paths | `{ }` | Flake-scoped shield files by name. |
-| `shields.values` | attribute set, read-only | derived | Decrypted flake-scoped values, each read only when used and available before any configuration evaluates. |
-| `shields.configurations` | attribute set of evaluated configurations | `config.flake.nixosConfigurations` | Configurations whose shield files enter the manifest. Override it when the configurations live in another output. |
-| `shields.nixosModule` | module, read-only | derived | `nixosModules.default` with `dir` and `masterIdentities` applied using `mkDefault`, so ordinary assignments in a configuration override them. |
-
-Importing both `shields.nixosModule` and `nixosModules.default` into one configuration is allowed. A flake that already uses agenix-rekey can assign `shields.masterIdentities` from its existing master identity list in the outer flake-parts module.
+| `shields.configurations` | attribute set of evaluated configurations | `config.flake.nixosConfigurations` | Configurations whose shield files and master identities enter the manifest. Override it when the configurations live in another output. |
 
 ## Manifest
 
-The manifest lists the master identities, the flake-scoped shield files, and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location is a string relative to the consumer's flake root; a location outside that root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
+The manifest lists the master identities and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location is a string relative to the consumer's flake root; a location outside that root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
 
-`masterIdentities` combines the flake-wide list with every configuration's `age.shields.masterIdentities`, each identity once. The flake-wide identities come first, then each configuration's in configuration name order. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
+`masterIdentities` combines every configuration's `age.shields.masterIdentities`, each identity once, in configuration name order. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
 
 For the [example consumer](../examples/consumer), `nix eval --json .#shields` returns:
 
 ```json
 {
   "configurations": {
-    "alpha": { "files": { "facts": "shields/alpha.nix.age" } },
-    "beta": { "files": { "facts": "shields/beta.nix.age" } }
+    "alpha": {
+      "files": { "facts": "shields/alpha.nix.age", "shared": "shields/shared.nix.age" }
+    },
+    "beta": {
+      "files": { "facts": "shields/beta.nix.age", "shared": "shields/shared.nix.age" }
+    }
   },
-  "files": { "shared": "shields/shared.nix.age" },
   "masterIdentities": [ "master-identities/throwaway.txt" ]
 }
 ```
