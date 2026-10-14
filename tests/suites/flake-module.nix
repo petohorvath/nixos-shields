@@ -15,6 +15,8 @@ let
   root = toString flakeRoot;
   shieldsDir = flakeRoot + "/shields";
   identityPath = flakeRoot + "/master-identities/throwaway.txt";
+  alphaIdentityPath = flakeRoot + "/master-identities/alpha.txt";
+  betaIdentityPath = flakeRoot + "/master-identities/beta.txt";
   sharedShieldPath = shieldsDir + "/shared.nix.age";
   alphaShieldPath = shieldsDir + "/alpha.nix.age";
 
@@ -45,6 +47,79 @@ in
       configurations.alpha.config.age.shields.files.facts = alphaShieldPath;
     };
     expected = exampleManifest;
+  };
+
+  # The flake-wide list comes first, then each configuration's in name
+  # order; an identity repeated anywhere, in any form, appears once.
+  testManifestCombinesConfigurationIdentities = {
+    expr =
+      (shieldsLib.mkManifest {
+        self.outPath = flakeRoot;
+        masterIdentities = [ identityPath ];
+        configurations = {
+          beta.config.age.shields.masterIdentities = [
+            betaIdentityPath
+            alphaIdentityPath
+          ];
+          alpha.config.age.shields.masterIdentities = [
+            (toString identityPath)
+            alphaIdentityPath
+            alphaIdentityPath
+          ];
+          unshielded.config.networking.hostName = "unshielded";
+        };
+      }).masterIdentities;
+    expected = [
+      "master-identities/throwaway.txt"
+      "master-identities/alpha.txt"
+      "master-identities/beta.txt"
+    ];
+  };
+
+  testManifestCombinesWithoutFlakeWideIdentities = {
+    expr =
+      (shieldsLib.mkManifest {
+        self.outPath = flakeRoot;
+        configurations.alpha.config.age.shields.masterIdentities = [ alphaIdentityPath ];
+      }).masterIdentities;
+    expected = [ "master-identities/alpha.txt" ];
+  };
+
+  testManifestRejectsEscapingConfigurationIdentity = {
+    expr =
+      (shieldsLib.mkManifest {
+        self.outPath = root;
+        configurations.alpha.config.age.shields.masterIdentities = [ "${root}/../outside.txt" ];
+      }).masterIdentities;
+    expectedError = {
+      type = "ThrownError";
+      msg = "manifest path /example/outside\\.txt is outside flake root ${root}$";
+    };
+  };
+
+  # A configuration importing the pre-configured module inherits the
+  # flake-wide identities and adds its own.
+  testFlakePublishesCombinedIdentities = {
+    expr =
+      (evalFlakeModule [
+        (
+          { config, ... }:
+          {
+            shields.masterIdentities = [ identityPath ];
+            flake.nixosConfigurations = {
+              alpha.config.age.shields = evalConfiguration [
+                config.shields.nixosModule
+                { age.shields.masterIdentities = [ alphaIdentityPath ]; }
+              ];
+              beta.config.age.shields = evalConfiguration [ config.shields.nixosModule ];
+            };
+          }
+        )
+      ]).flake.shields.masterIdentities;
+    expected = [
+      "master-identities/throwaway.txt"
+      "master-identities/alpha.txt"
+    ];
   };
 
   testNixosModuleInheritsDefaults = {

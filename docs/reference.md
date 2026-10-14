@@ -54,9 +54,9 @@ The result's `passthru` holds `extraBuiltinsFile`, `nix`, and `plugins`.
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `self` | required | The consumer's flake, whose root anchors every location |
-| `masterIdentities` | `[ ]` | Master identity files |
+| `masterIdentities` | `[ ]` | Flake-wide master identity files |
 | `files` | `{ }` | Flake-scoped shield files by name |
-| `configurations` | `{ }` | Evaluated configurations by name; each contributes its `config.age.shields.files` |
+| `configurations` | `{ }` | Evaluated configurations by name; each contributes its `config.age.shields.files` and `masterIdentities` |
 
 ```nix
 shields = nixos-shields.lib.mkManifest {
@@ -73,7 +73,7 @@ shields = nixos-shields.lib.mkManifest {
 
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `age.shields.masterIdentities` | list of paths | `[ ]` | Age identity files, any one of which can decrypt every shield of the configuration. Evaluating a shield with none set fails. |
+| `age.shields.masterIdentities` | list of paths | `[ ]` | Age identity files, any one of which can decrypt every shield of the configuration. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to. |
 | `age.shields.dir` | path | none | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it. |
 | `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. |
 | `age.shields.values` | attribute set, read-only | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it. |
@@ -96,6 +96,8 @@ Importing both `shields.nixosModule` and `nixosModules.default` into one configu
 ## Manifest
 
 The manifest lists the master identities, the flake-scoped shield files, and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location is a string relative to the consumer's flake root; a location outside that root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
+
+`masterIdentities` combines the flake-wide list with every configuration's `age.shields.masterIdentities`, each identity once. The flake-wide identities come first, then each configuration's in configuration name order. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
 
 For the [example consumer](../examples/consumer), `nix eval --json .#shields` returns:
 
