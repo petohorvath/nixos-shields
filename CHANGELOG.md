@@ -11,6 +11,7 @@
 ### Changed
 
 - `nixos-shields rekey` without `--identity` decrypts with every master identity in manifest order, as `edit` and evaluation do, instead of only the first.
+- The manifest's `masterIdentities`, from `lib.mkManifest` and `flakeModules.default`, combines the flake-wide list with every configuration's `age.shields.masterIdentities`, each identity once. `nixos-shields edit` and `rekey` encrypt every shield to all of them, so a configuration that declares an identity missing from the flake-wide list can read its shields after an edit.
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are flake checks, run by `nix flake check` and CI.
 - The `nixpkgs` input tracks `nixos-26.05` instead of `nixos-unstable`, locked to the nixos-project-policy v0.5.1 stable pin; consumers that do not make it follow their own nixpkgs get the stable release. x86_64-darwin stays undeclared.

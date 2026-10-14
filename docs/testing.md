@@ -22,7 +22,7 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 - text and JSON listings, configuration filtering, and local directory selection
 - shield values reaching `alpha`'s ordinary options, and `beta` failing with its missing shield file's location
 - unchanged and changed edits, creating a missing shield, editor failure, and temporary-file cleanup
-- encryption to all master identities, and rotation to a second identity verified through the wrapped Nix
+- encryption to all master identities, including one that only `alpha` declares, and rotation to a second identity verified through the wrapped Nix
 - `rekey` decrypting with every master identity when the first cannot open the shields
 - the primary identity variables in `edit` and in evaluation through the wrapped Nix
 - no shield file copied into the store
@@ -33,7 +33,7 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 The check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites without the plugin, against the flake's public outputs:
 
 - `nixosModule` drives the option tree through `evalModules`. It covers defaults, wiring files from `dir`, `values` being read-only, and the failures a missing file or an empty identity list produce.
-- `flakeModule` evaluates the flake-parts option tree and the pre-configured NixOS module. It covers relative manifest locations, the flake options' defaults, `values` being read-only, the module's inherited and overridden defaults, selecting configurations from another output, and importing the pre-configured module beside `nixosModules.default`. It also checks `lib.mkManifest` directly for plain flakes.
+- `flakeModule` evaluates the flake-parts option tree and the pre-configured NixOS module. It covers relative manifest locations, the flake options' defaults, `values` being read-only, the module's inherited and overridden defaults, selecting configurations from another output, and importing the pre-configured module beside `nixosModules.default`. It also checks `lib.mkManifest` directly for plain flakes, including the master identities it combines from configurations without duplicates.
 
 ## `decrypt-cache`
 

@@ -102,12 +102,17 @@ EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields edit shared
 cmp shields/shared.nix.age "$TMPDIR/shared-before.age" || fail "unchanged edit rewrote the shield"
 [[ ! -e $(cat "$EDITOR_DIRECTORY") ]] || fail "unchanged edit left plaintext behind"
 
-# A changed edit must target every master identity, including the backup.
+# A changed edit must target every master identity: the flake-wide list,
+# now with a backup, and an identity that only alpha declares.
 rage-keygen -o master-identities/backup.txt 2>/dev/null
+rage-keygen -o master-identities/alpha-only.txt 2>/dev/null
 sed -i 's@masterIdentities = \[ ./master-identities/throwaway.txt \];@masterIdentities = [ ./master-identities/throwaway.txt ./master-identities/backup.txt ];@' flake.nix
+sed -i '/age.shields.files.facts =/a\                  age.shields.masterIdentities = nixpkgs.lib.mkIf (name == "alpha") [ ./master-identities/alpha-only.txt ];' flake.nix
+[[ $(evalExample nixosConfigurations.alpha.config.age.shields.masterIdentities) == *'alpha-only.txt"]' ]] \
+  || fail "alpha does not declare only its own identity"
 EDITOR="bash '$TMPDIR/scripted editor' shared" nixos-shields edit shared
 if cmp -s shields/shared.nix.age "$TMPDIR/shared-before.age"; then fail "changed edit did not encrypt"; fi
-for identity in master-identities/throwaway.txt master-identities/backup.txt; do
+for identity in master-identities/throwaway.txt master-identities/backup.txt master-identities/alpha-only.txt; do
   actual=$(rage --decrypt --identity "$identity" shields/shared.nix.age)
   [[ $actual == '{ domain = "edited.example.test"; }' ]] || fail "edit omitted $identity"
 done
@@ -123,6 +128,9 @@ EDITOR="bash '$TMPDIR/scripted editor' beta" nixos-shields edit beta:facts
 [[ $(evalExample nixosConfigurations.beta.config.age.shields.values) == '{"facts":{"domain":"beta.example.test"}}' ]] \
   || fail "configuration-scoped edit did not reach the configuration"
 [[ ! -e $(cat "$EDITOR_DIRECTORY") ]] || fail "new shield left plaintext behind"
+# alpha's identity opens a shield that only beta declares.
+rage --decrypt --identity master-identities/alpha-only.txt shields/beta.nix.age > /dev/null \
+  || fail "edit omitted alpha's identity from beta's shield"
 
 cp shields/shared.nix.age "$TMPDIR/shared-before-failure.age"
 expectFailure 'editor' env EDITOR="bash '$TMPDIR/scripted editor' fail" nixos-shields edit shared
@@ -137,13 +145,15 @@ rage-keygen -o master-identities/new.txt 2>/dev/null
 sed -i 's@\[ ./master-identities/throwaway.txt@[ ./master-identities/new.txt ./master-identities/throwaway.txt@' flake.nix
 nixos-shields rekey
 for file in shields/*.nix.age; do
-  for identity in master-identities/new.txt master-identities/backup.txt; do
+  for identity in master-identities/new.txt master-identities/backup.txt master-identities/alpha-only.txt; do
     rage --decrypt --identity "$identity" "$file" > /dev/null \
       || fail "default rekey omitted $identity for $file"
   done
 done
+[[ $(evalExample nixosConfigurations.alpha.config.networking.domain) == '"alpha.example.test"' ]] \
+  || fail "alpha cannot read its shield with its own identity after rekey"
 
-# Remove the first identity from the declaration and use it only to decrypt.
+# Keep only the backup flake-wide and decrypt with the removed throwaway.
 # A file can have multiple addresses; rotation must encrypt that file once.
 cp master-identities/throwaway.txt "$TMPDIR/old identity.txt"
 sed -i 's@\[ ./master-identities/new.txt ./master-identities/throwaway.txt ./master-identities/backup.txt \]@[ ./master-identities/backup.txt ]@' flake.nix
@@ -158,6 +168,8 @@ for file in shields/*.nix.age; do
   fi
   rage --decrypt --identity master-identities/backup.txt "$file" > /dev/null \
     || fail "new identity cannot open $file"
+  rage --decrypt --identity master-identities/alpha-only.txt "$file" > /dev/null \
+    || fail "rotation omitted alpha's identity for $file"
 done
 [[ $(evalExample sharedShield) == '{"domain":"edited.example.test"}' ]] \
   || fail "rotation changed the flake-scoped values"

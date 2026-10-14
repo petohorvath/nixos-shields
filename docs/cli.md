@@ -47,7 +47,7 @@ EDITOR='code --wait' nixos-shields edit alpha:facts
 
 - An unchanged edit leaves the shield file byte-identical.
 - An existing shield is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity).
-- A changed edit encrypts to every master identity in the manifest and replaces the shield file only after encryption succeeds.
+- A changed edit encrypts to every master identity in the manifest, the flake-wide ones and those of every configuration, and replaces the shield file only after encryption succeeds.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
 
@@ -62,10 +62,10 @@ nixos-shields rekey --identity /path/to/previous-identity.txt
 
 To rotate master identities:
 
-1. Change the declared master identity list to the new identities.
+1. Change the declared master identity lists, flake-wide and in every configuration, to the new identities.
 2. Run `nixos-shields rekey --identity <old-identity>` with an old identity that is still available.
 
-An old identity loses access to the current shield files only once it leaves the declared list. It can still decrypt earlier versions in git history.
+An old identity loses access to the current shield files only once it leaves every declared list. It can still decrypt earlier versions in git history.
 
 ## Primary identity
 
