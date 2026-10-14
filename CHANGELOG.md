@@ -6,9 +6,11 @@
 
 - `packages.default`, the `nixos-shields` command-line tool.
 - `flakeModules.default`, the flake-parts module.
+- `NIXOS_SHIELDS_PRIMARY_IDENTITY` names an identity file tried before the master identities, and `NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true` restricts decryption to it, in the command-line tool and in evaluation through the wrapped Nix.
 
 ### Changed
 
+- `nixos-shields rekey` without `--identity` decrypts with every master identity in manifest order, as `edit` and evaluation do, instead of only the first.
 - Every shield belongs to a configuration, and every configuration declares its own master identities, as with agenix-rekey. The manifest's `masterIdentities`, from `lib.mkManifest` and `flakeModules.default`, combines every configuration's `age.shields.masterIdentities`, each identity once, and `nixos-shields edit` and `rekey` encrypt every shield to all of them. Share master identities through a NixOS module imported by each configuration, share data by declaring one shield file in several configurations, and read a configuration's values from outside it through `nixosConfigurations.<name>.config.age.shields.values`.
 - `nixos-shields list` headings name each configuration as `Configuration <name>:`.
 - Unit tests run under nix-unit and can be run directly from the development shell.

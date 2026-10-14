@@ -24,6 +24,8 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 - one shield file declared by both configurations, readable through each after `edit` and `rekey`
 - unchanged and changed edits, creating a missing shield, editor failure, bare addresses failing as unknown, and temporary-file cleanup
 - encryption to all master identities, including one that only `alpha` declares, and rotation to a second identity verified through the wrapped Nix
+- `rekey` decrypting with every master identity when the first cannot open the shields
+- the primary identity variables in `edit` and in evaluation through the wrapped Nix
 - no shield file copied into the store
 - decrypt cache removal
 

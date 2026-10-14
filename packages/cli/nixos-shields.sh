@@ -164,10 +164,26 @@ while IFS= read -r -d '' identity; do
 done < <(jq -j '.masterIdentities[] | ., "\u0000"' <<< "$manifest")
 [[ ${#identity_args[@]} -gt 0 ]] || die "no master identity declared"
 
+# The primary identity, relative to the caller, is tried first or alone.
+primary_identity=${NIXOS_SHIELDS_PRIMARY_IDENTITY:-}
+decryption_args=()
+if [[ -n $primary_identity ]]; then
+  [[ -f $primary_identity ]] || die "primary identity does not exist: $primary_identity"
+  decryption_args+=(--identity "$primary_identity")
+fi
+if [[ ${NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY:-} == true ]]; then
+  [[ -n $primary_identity ]] \
+    || die "NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY"
+else
+  decryption_args+=("${identity_args[@]}")
+fi
+
 if [[ $command_name == rekey ]]; then
-  # An explicit identity is relative to the caller, not the flake directory.
-  rekey_identity=${rekey_identity:-${identity_args[1]}}
-  [[ -f $rekey_identity ]] || die "decryption identity does not exist: $rekey_identity"
+  if [[ -n $rekey_identity ]]; then
+    # An explicit identity is relative to the caller, not the flake directory.
+    [[ -f $rekey_identity ]] || die "decryption identity does not exist: $rekey_identity"
+    decryption_args=(--identity "$rekey_identity")
+  fi
   files=()
   declare -A seen_files=()
   while IFS= read -r -d '' relative; do
@@ -210,7 +226,7 @@ encrypt_file() {
 
 if [[ $command_name == rekey ]]; then
   for file in "${files[@]}"; do
-    rage --decrypt --identity "$rekey_identity" --output "$plaintext" "$file"
+    rage --decrypt "${decryption_args[@]}" --output "$plaintext" "$file"
     encrypt_file "$file"
     echo "Rekeyed: ${file#"$flake_dir/"}"
   done
@@ -220,7 +236,7 @@ fi
 existing=false
 if [[ -f $file ]]; then
   existing=true
-  rage --decrypt "${identity_args[@]}" --output "$plaintext" "$file"
+  rage --decrypt "${decryption_args[@]}" --output "$plaintext" "$file"
 else
   echo '{}' > "$plaintext"
 fi
