@@ -24,7 +24,7 @@ The table lists the consumer-facing outputs. The `checks`, `devShells`, and `for
 
 ### `lib.importShield`
 
-`importShield identities file` decrypts `file` with any of the master identity files in the list `identities` and returns the value of the Nix expression it holds. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
+`importShield identities file` decrypts `file` with any of the master identity files in the list `identities`, subject to the [primary identity](#primary-identity) variables, and returns the value of the Nix expression it holds. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
 
 ```nix
 nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/beta.nix.age
@@ -137,6 +137,12 @@ The result exposes both `builtins.extraBuiltins.importShield` and `builtins.extr
 The shield builtin is provided by [nix-plugins](https://github.com/shlevy/nix-plugins), which must be compiled against the exact Nix that loads it. The kit builds it against the Nix 2.34 series from nixpkgs (`nixVersions.nix_2_34`). This ABI requirement is why the kit supplies a wrapped Nix together with the matching plugin, rather than loading the plugin into an arbitrary system Nix.
 
 A [compatibility patch](../packages/nix-plugins/nix-2.34.patch) is carried in the kit until an upstream nix-plugins release builds against that Nix. A newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
+
+## Primary identity
+
+`NIXOS_SHIELDS_PRIMARY_IDENTITY` names an identity file that the builtin tries before the master identities it is given; with `NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true`, the builtin decrypts with that file alone. The file is relative to the current directory of the Nix process, or an absolute path, and need not be a declared master identity. Setting `_ONLY` without a primary identity fails decryption. The [command-line tool](cli.md#primary-identity) honours the same variables.
+
+The variables do not change [decrypt cache](#decrypt-cache) keys. They take effect only when a shield is decrypted, not when its entry is already cached, so run `nixos-shields clean` to check that a primary identity alone can open the shields.
 
 ## Decrypt cache
 

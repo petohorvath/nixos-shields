@@ -23,6 +23,8 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 - shield values reaching `alpha`'s ordinary options, and `beta` failing with its missing shield file's location
 - unchanged and changed edits, creating a missing shield, editor failure, and temporary-file cleanup
 - encryption to all master identities, and rotation to a second identity verified through the wrapped Nix
+- `rekey` decrypting with every master identity when the first cannot open the shields
+- the primary identity variables in `edit` and in evaluation through the wrapped Nix
 - no shield file copied into the store
 - decrypt cache removal
 

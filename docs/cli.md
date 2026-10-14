@@ -46,6 +46,7 @@ EDITOR='code --wait' nixos-shields edit alpha:facts
 `edit` decrypts the shield into a private temporary directory outside the checkout, runs `$EDITOR` as a Bash command with the plaintext file appended, and removes the directory on exit. Set `EDITOR` to a command that waits until editing finishes. The temporary directory follows `TMPDIR`; the tool refuses one inside the checkout.
 
 - An unchanged edit leaves the shield file byte-identical.
+- An existing shield is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity).
 - A changed edit encrypts to every master identity in the manifest and replaces the shield file only after encryption succeeds.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
@@ -57,7 +58,7 @@ nixos-shields rekey
 nixos-shields rekey --identity /path/to/previous-identity.txt
 ```
 
-`rekey` decrypts every declared shield with `--identity` and encrypts it to every current master identity. `--identity` is a file relative to the current directory, or an absolute path, and defaults to the first master identity in the manifest. Every declared shield file must exist.
+`rekey` decrypts every declared shield and encrypts it to every current master identity. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
 
 To rotate master identities:
 
@@ -65,6 +66,18 @@ To rotate master identities:
 2. Run `nixos-shields rekey --identity <old-identity>` with an old identity that is still available.
 
 An old identity loses access to the current shield files only once it leaves the declared list. It can still decrypt earlier versions in git history.
+
+## Primary identity
+
+`NIXOS_SHIELDS_PRIMARY_IDENTITY` names an identity file to try before the declared master identities, so a user holding one of several YubiKeys is not prompted for the others. The file is relative to the current directory, or an absolute path, and need not be declared. With `NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true`, it is the only identity tried; setting `_ONLY` without a primary identity fails.
+
+```sh
+NIXOS_SHIELDS_PRIMARY_IDENTITY=master-identities/yubikey-2.txt \
+NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+  nixos-shields edit alpha:facts
+```
+
+The variables affect decryption in `edit` and in `rekey` without `--identity`, never encryption. Evaluation through the wrapped Nix honours them too, as the [reference](reference.md#primary-identity) describes.
 
 ## `clean`
 

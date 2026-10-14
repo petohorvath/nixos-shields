@@ -130,18 +130,23 @@ cmp shields/shared.nix.age "$TMPDIR/shared-before-failure.age" || fail "failed e
 [[ ! -e $(cat "$EDITOR_DIRECTORY") ]] || fail "failed editor left plaintext behind"
 expectFailure 'unknown address' nixos-shields edit absent
 
-# With no explicit identity, rekey uses the first master identity and
+# With no explicit identity, rekey decrypts with every master identity, so
+# a new first identity that opens no shield yet does not stop it. It also
 # includes the backup even on alpha's previously unchanged shield.
+rage-keygen -o master-identities/new.txt 2>/dev/null
+sed -i 's@\[ ./master-identities/throwaway.txt@[ ./master-identities/new.txt ./master-identities/throwaway.txt@' flake.nix
 nixos-shields rekey
 for file in shields/*.nix.age; do
-  rage --decrypt --identity master-identities/backup.txt "$file" > /dev/null \
-    || fail "default rekey omitted the backup for $file"
+  for identity in master-identities/new.txt master-identities/backup.txt; do
+    rage --decrypt --identity "$identity" "$file" > /dev/null \
+      || fail "default rekey omitted $identity for $file"
+  done
 done
 
 # Remove the first identity from the declaration and use it only to decrypt.
 # A file can have multiple addresses; rotation must encrypt that file once.
 cp master-identities/throwaway.txt "$TMPDIR/old identity.txt"
-sed -i 's@\[ ./master-identities/throwaway.txt ./master-identities/backup.txt \]@[ ./master-identities/backup.txt ]@' flake.nix
+sed -i 's@\[ ./master-identities/new.txt ./master-identities/throwaway.txt ./master-identities/backup.txt \]@[ ./master-identities/backup.txt ]@' flake.nix
 sed -i '/files.shared =/a\          files.sharedAlias = ./shields/shared.nix.age;' flake.nix
 (
   cd "$TMPDIR" || exit
@@ -160,6 +165,41 @@ done
   || fail "rotation changed alpha's values"
 [[ $(evalExample nixosConfigurations.beta.config.age.shields.values) == '{"facts":{"domain":"beta.example.test"}}' ]] \
   || fail "rotation changed beta's values"
+
+# The primary identity need not be declared, and is relative to the caller.
+# With _ONLY, it alone decrypts: the removed identity fails, a copy of the
+# declared one succeeds.
+cp master-identities/backup.txt "$TMPDIR/primary.txt"
+cp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age"
+expectFailure 'No matching keys found' env NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
+  NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true EDITOR="bash '$TMPDIR/scripted editor' unchanged" \
+  nixos-shields edit alpha:facts
+(
+  cd "$TMPDIR" || exit
+  NIXOS_SHIELDS_PRIMARY_IDENTITY=primary.txt NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+    EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields --flake "$consumer" edit alpha:facts
+)
+cmp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age" || fail "primary identity edit rewrote the shield"
+expectFailure 'NIXOS_SHIELDS_PRIMARY_IDENTITY' env NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+  EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields edit alpha:facts
+
+# Without _ONLY, the declared identities follow a primary that fails.
+NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
+  EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields edit alpha:facts
+
+# Evaluation honours the same variables. Each run starts with a cold decrypt
+# cache and no evaluation cache, so it really decrypts.
+evalWithPrimaryOnly() {
+  local primary=$1 cache
+  cache=$(mktemp -d "$TMPDIR/primary-cache.XXXXXX")
+  NIXOS_SHIELDS_CACHE_DIR=$cache NIXOS_SHIELDS_PRIMARY_IDENTITY=$primary \
+    NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+    nix eval --json --no-eval-cache --extra-experimental-features 'nix-command flakes' \
+    path:.#nixosConfigurations.alpha.config.networking.domain
+}
+expectFailure 'No matching keys found' evalWithPrimaryOnly "$TMPDIR/old identity.txt"
+[[ $(evalWithPrimaryOnly "$TMPDIR/primary.txt") == '"alpha.example.test"' ]] \
+  || fail "evaluation did not decrypt with the primary identity"
 
 # The suffix check inspects the base name, so no evaluation above copied
 # a shield file into the store on its own; the consumer's source tree is
