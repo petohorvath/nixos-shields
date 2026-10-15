@@ -24,6 +24,10 @@ _Avoid_: Key, recipient, pubkey
 A public key, or a recipients file of public keys, that every shield is encrypted to but that is never used to decrypt, such as an offline backup key or a team's keys. Unlike a master identity, it has no identity file in the flake, so evaluation and editing never try it; its private key opens shields only outside the kit, such as after losing every master identity.
 _Avoid_: Backup identity, extra recipient, master identity
 
+**Primary identity**:
+The identity file that the person at the keyboard holds, chosen by them rather than declared in the flake, and tried before the master identities when a shield is decrypted, or instead of them. It spares prompts for hardware keys they do not hold. It need not be a master identity, but it opens shields only if one of them, or an extra encryption pubkey, matches its key.
+_Avoid_: Default identity, preferred key, first master identity
+
 **Configuration**:
 An evaluated NixOS system that can own shields. The consumer decides which attribute set holds them.
 _Avoid_: Host, node, machine

@@ -19,7 +19,7 @@ Usage: nixos-shields [--flake <directory>] <command>
 
 The tool runs against the flake in the current directory, or against `--flake <directory>`, given before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo` or `path:...`, and directories inside `/nix/store`, are refused. The tool evaluates the flake's `shields` [manifest](reference.md#manifest) once per command and resolves its relative file locations against the checkout. A master identity or recipients file outside the flake root has an absolute location in the manifest and is used where it lies.
 
-Encryption presents an identity file only when the manifest pairs no public key with it, and fails when that file does not exist. Decryption tries every identity file that exists, so an identity paired with a public key, such as a teammate's, need not be on disk.
+Encryption presents an identity file only when the manifest pairs no public key with it, and fails when that file does not exist. Decryption tries every identity file that exists, so an identity paired with a public key, such as a teammate's, need not be on disk. A misspelled identity paired with a public key is skipped the same way, without a message, and fails only when no identity can decrypt.
 
 Encryption also targets every [extra encryption pubkey](reference.md#extra-encryption-pubkeys) in the manifest: a public key directly, and a recipients file through rage's `--recipients-file`, which fails when the file does not exist. Decryption never uses them.
 

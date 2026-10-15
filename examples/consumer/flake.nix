@@ -30,7 +30,7 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       { config, ... }:
       let
-        inherit (nixpkgs.lib) genAttrs mapAttrs nixosSystem;
+        inherit (nixpkgs.lib) genAttrs nixosSystem;
 
         # Settings every configuration shares, as with agenix-rekey's
         # age.rekey.masterIdentities.
@@ -80,10 +80,10 @@
         flake.nixosConfigurations = genAttrs [ "alpha" "beta" ] mkConfiguration;
 
         # A configuration's shield values are readable from outside it,
-        # here in the shape deploy-rs reads its targets from.
-        flake.deploy.nodes = mapAttrs (_: configuration: {
-          hostname = configuration.config.age.shields.values.facts.domain;
-        }) config.flake.nixosConfigurations;
+        # here in the shape deploy-rs reads its targets from. Only alpha
+        # is a node: beta's own shield file is missing.
+        flake.deploy.nodes.alpha.hostname =
+          config.flake.nixosConfigurations.alpha.config.age.shields.values.facts.domain;
       }
     );
 }

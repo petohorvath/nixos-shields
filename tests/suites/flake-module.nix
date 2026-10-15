@@ -1,8 +1,6 @@
-/*
-  The manifest builder and flake-parts option tree, evaluated without
-  the builtin. Only public outputs are read: the manifest and the
-  options of the flake-parts module.
-*/
+# The manifest builder and flake-parts option tree, evaluated without
+# the builtin. Only public outputs are read: the manifest and the
+# options of the flake-parts module.
 {
   evalFlakeModule,
   flakeRoot,
@@ -248,6 +246,46 @@ in
     expected = [
       {
         identity = "master-identities/yubikey.txt";
+        pubkey = null;
+      }
+    ];
+  };
+
+  # Nix cannot read a file holding a NUL byte, such as a binary
+  # passphrase-protected identity, into a string, and no Nix builtin
+  # tolerates it, so the manifest fails naming the file.
+  testManifestRejectsUnpairedBinaryIdentity = {
+    expr = stubManifestIdentities [ (stubPath "binary-passphrase-protected.age") ];
+    expectedError.msg = "binary-passphrase-protected\\.age' cannot be represented as a Nix string";
+  };
+
+  # A declared public key means the file is never read.
+  testManifestAcceptsPairedBinaryIdentity = {
+    expr = stubManifestIdentities [
+      {
+        identity = stubPath "binary-passphrase-protected.age";
+        pubkey = "age1passphrase";
+      }
+    ];
+    expected = [
+      {
+        identity = "master-identities/binary-passphrase-protected.age";
+        pubkey = "age1passphrase";
+      }
+    ];
+  };
+
+  # A stub path outside the flake root is not part of the flake's
+  # source, so it is never read, though the file exists.
+  testManifestDoesNotReadIdentitiesOutsideRoot = {
+    expr =
+      (shieldsLib.mkManifest {
+        self.outPath = stubFlakeRoot + "/nested-root";
+        configurations.alpha.config.age.shields.masterIdentities = [ (stubPath "yubikey.txt") ];
+      }).masterIdentities;
+    expected = [
+      {
+        identity = toString (stubPath "yubikey.txt");
         pubkey = null;
       }
     ];
