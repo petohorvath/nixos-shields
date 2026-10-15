@@ -7,6 +7,7 @@
 - `packages.default`, the `nixos-shields` command-line tool.
 - `flakeModules.default`, the flake-parts module.
 - `age.shields.masterIdentities` entries can pair an identity with its public key as `{ identity; pubkey; }`, the form of agenix-rekey's `age.rekey.masterIdentities`, so assigning that option's value works. `nixos-shields edit` and `rekey` encrypt to a paired public key instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt. `lib.importShield` accepts the same entries.
+- The manifest reads the public key of a master identity given as a path to a YubiKey or FIDO2 identity stub inside the flake root, from the stub's `Recipient:` or `public key:` comment, following agenix-rekey's rules: exactly one plugin identity line and exactly one key. `nixos-shields edit` and `rekey` then encrypt to the key without touching the hardware. Any other file, and any identity given as a string or outside the flake root, gets a `null` public key, and a declared `pubkey` wins over the stub's.
 - `NIXOS_SHIELDS_PRIMARY_IDENTITY` names an identity file tried before the master identities, and `NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true` restricts decryption to it, in the command-line tool and in evaluation through the wrapped Nix.
 
 ### Changed

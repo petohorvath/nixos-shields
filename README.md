@@ -178,6 +178,8 @@ age.shields.masterIdentities = [
 ];
 ```
 
+A YubiKey or FIDO2 identity stub given as a path inside the flake needs no `pubkey`: the manifest reads it from the stub's `Recipient:` or `public key:` comment, so encrypting never touches the hardware.
+
 [docs/reference.md](docs/reference.md) lists every option of both modules, the library functions, and the manifest format.
 
 ### Share a shield between configurations
