@@ -2,6 +2,7 @@
   writeShellApplication,
   bash,
   coreutils,
+  diffutils,
   jq,
   nix,
   rage,
@@ -11,6 +12,7 @@ writeShellApplication {
   runtimeInputs = [
     bash
     coreutils
+    diffutils
     jq
     nix
     rage
