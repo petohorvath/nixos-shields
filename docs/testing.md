@@ -28,6 +28,7 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 - `rekey` decrypting with every master identity when the first cannot open the shields
 - the primary identity variables in `edit` and in evaluation through the wrapped Nix
 - a master identity outside the flake root, kept absolute in the manifest, working for `edit`, `rekey` from another directory, and evaluation through the wrapped Nix, beside a teammate's identity paired with its public key whose file does not exist
+- the unencrypted private key warning for the example's throwaway identity and an unencrypted OpenSSH key, with the command still succeeding, and none for an identity outside the flake root, a YubiKey stub, a passphrase-protected age identity, or a passphrase-protected OpenSSH key
 - no shield file and no outside identity copied into the store
 - decrypt cache removal
 

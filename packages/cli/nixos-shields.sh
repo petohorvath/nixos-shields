@@ -108,6 +108,39 @@ manifest=$(
     --no-write-lock-file 'path:.#shields'
 )
 
+# An age secret key line, or an OpenSSH private key whose cipher is none:
+# its binary form starts with "openssh-key-v1", a NUL, and the cipher name
+# as a length-prefixed string.
+unencrypted_openssh_header=$(printf 'openssh-key-v1\0\0\0\0\4none' | od -An -tx1 | tr -d ' \n')
+holds_plaintext_key() {
+  local line openssh=false body=
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    case $line in
+      AGE-SECRET-KEY-*) return 0 ;;
+      '-----BEGIN OPENSSH PRIVATE KEY-----') openssh=true ;;
+      '-----END OPENSSH PRIVATE KEY-----') break ;;
+      *) [[ $openssh == false ]] || body+=$line ;;
+    esac
+  done < "$1"
+  [[ -n $body ]] || return 1
+  [[ $(base64 -d <<< "$body" 2> /dev/null | head -c 23 | od -An -tx1 | tr -d ' \n') \
+    == "$unencrypted_openssh_header" ]]
+}
+
+# A master identity inside the flake root is committed with it and copied
+# into the Nix store, so a plain private key there earns a warning. One
+# outside the root, or absent, is not inspected.
+while IFS= read -r -d '' identity; do
+  file=$(realpath -m -- "$flake_dir/$identity")
+  [[ -f $file && -r $file ]] || continue
+  if holds_plaintext_key "$file"; then
+    echo "nixos-shields: warning: master identity $identity holds an unencrypted private key" \
+      "inside the flake, which is copied into the Nix store; use a YubiKey or FIDO2 identity" \
+      "stub, a passphrase-protected identity, or a path outside the flake" >&2
+  fi
+done < <(jq -j '.masterIdentities[].identity | select(startswith("/") | not) | ., "\u0000"' <<< "$manifest")
+
 if [[ -n $configuration ]]; then
   jq -e --arg name "$configuration" '.configurations | has($name)' <<< "$manifest" > /dev/null \
     || die "unknown configuration: $configuration"

@@ -6,6 +6,8 @@ A flake-parts flake that consumes `nixos-shields.flakeModules.default` to publis
 
 `master-identities/throwaway.txt` is a throwaway age identity, committed on purpose so the example evaluates anywhere. It protects nothing, and both shield files contain only example values. Do not report it as leaked, and do not reuse it.
 
+It is a plain age key inside the flake root, so every `nixos-shields` command except `clean` prints the [unencrypted private key warning](../../docs/cli.md#unencrypted-private-keys) for it, and still succeeds. The warning is deliberate here: a real flake keeps such a key outside the flake root, or commits only an identity stub or a passphrase-protected identity.
+
 ## Layout
 
 | Path | Role |

@@ -100,7 +100,7 @@ age.shields.masterIdentities = [
 
 A YubiKey or FIDO2 identity stub given as a path needs no `pubkey`: the manifest [reads its public key](#public-keys-from-identity-stubs) from the stub's comments.
 
-An identity outside the flake root is never committed or copied into the Nix store: evaluation hands its location to the builtin, and the manifest keeps it absolute. Keep plain age keys and SSH keys there, and commit only YubiKey or FIDO2 identity stubs and passphrase-protected identities under the flake root. A path inside the flake is copied into the store with the flake source.
+An identity outside the flake root is never committed or copied into the Nix store: evaluation hands its location to the builtin, and the manifest keeps it absolute. Keep plain age keys and SSH keys there, and commit only YubiKey or FIDO2 identity stubs and passphrase-protected identities under the flake root; the command-line tool [warns](cli.md#unencrypted-private-keys) about an unencrypted private key inside it. A path inside the flake is copied into the store with the flake source.
 
 A string that is not an absolute path fails evaluation.
 
