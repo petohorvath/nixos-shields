@@ -80,10 +80,13 @@ runCommand "nixos-shields-integration"
     # The builtin itself takes an identity as an absolute path string,
     # and rejects a relative one.
     builtin="builtins.extraBuiltins.importShield"
-    actual=$(evalJson nix "$builtin [ \"$TMPDIR/identity.txt\" ] $TMPDIR/fixture.nix.age" | jq -cS .)
+    stringShield="$builtin [ \"$TMPDIR/identity.txt\" ] $TMPDIR/fixture.nix.age"
+    actual=$(evalJson nix "$stringShield" | jq -cS .)
     [[ $actual == "$expected" ]] \
-      || fail "the builtin returned $actual for a string identity, expected $expected"
-    if evalJson nix "$builtin [ \"identity.txt\" ] $TMPDIR/fixture.nix.age" 2> relative.log; then
+      || fail "the builtin returned $actual for a string identity," \
+        "expected $expected"
+    relativeShield="$builtin [ \"identity.txt\" ] $TMPDIR/fixture.nix.age"
+    if evalJson nix "$relativeShield" 2> relative.log; then
       fail "the builtin accepted a relative identity string"
     fi
     grep -q 'absolute path strings' relative.log \
@@ -103,8 +106,10 @@ runCommand "nixos-shields-integration"
 
     # The fixture and the identity live outside the store; reading them
     # must not copy them in.
-    copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age' -o -name '*-identity.txt')
-    [[ -z $copies ]] || fail "shield file or identity copied into the store: $copies"
+    copies=$(find "$NIX_STORE" -maxdepth 1 \
+      -name '*.nix.age' -o -name '*-identity.txt')
+    [[ -z $copies ]] \
+      || fail "shield file or identity copied into the store: $copies"
 
     touch "$out"
   ''
