@@ -189,6 +189,15 @@ age.shields.masterIdentities = [
 ];
 ```
 
+`age.shields.extraEncryptionPubkeys` lists public keys that every shield is also encrypted to and that are never used to decrypt, such as an offline backup key. An entry is a public key string, or a recipients file given as a path or an absolute path string:
+
+```nix
+age.shields.extraEncryptionPubkeys = [
+  "age1..."
+  ./recipients/team.txt
+];
+```
+
 [docs/reference.md](docs/reference.md) lists every option of both modules, the library functions, and the manifest format.
 
 ### Share a shield between configurations

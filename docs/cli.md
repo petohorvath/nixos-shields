@@ -17,9 +17,11 @@ Usage: nixos-shields [--flake <directory>] <command>
 
 ## Flake selection
 
-The tool runs against the flake in the current directory, or against `--flake <directory>`, given before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo` or `path:...`, and directories inside `/nix/store`, are refused. The tool evaluates the flake's `shields` [manifest](reference.md#manifest) once per command and resolves its relative file locations against the checkout. A master identity outside the flake root has an absolute location in the manifest and is used where it lies.
+The tool runs against the flake in the current directory, or against `--flake <directory>`, given before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo` or `path:...`, and directories inside `/nix/store`, are refused. The tool evaluates the flake's `shields` [manifest](reference.md#manifest) once per command and resolves its relative file locations against the checkout. A master identity or recipients file outside the flake root has an absolute location in the manifest and is used where it lies.
 
 Encryption presents an identity file only when the manifest pairs no public key with it, and fails when that file does not exist. Decryption tries every identity file that exists, so an identity paired with a public key, such as a teammate's, need not be on disk.
+
+Encryption also targets every [extra encryption pubkey](reference.md#extra-encryption-pubkeys) in the manifest: a public key directly, and a recipients file through rage's `--recipients-file`, which fails when the file does not exist. Decryption never uses them.
 
 ## Addresses
 
@@ -49,7 +51,7 @@ EDITOR='code --wait' nixos-shields edit alpha:facts
 
 - An unchanged edit leaves the shield file byte-identical.
 - An existing shield is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity).
-- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds. It encrypts to an identity's public key when the manifest pairs one, and presents the identity file otherwise.
+- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds. It encrypts to an identity's public key when the manifest pairs one, and presents the identity file otherwise. It also encrypts to every extra encryption pubkey.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
 
@@ -60,7 +62,7 @@ nixos-shields rekey
 nixos-shields rekey --identity /path/to/previous-identity.txt
 ```
 
-`rekey` decrypts every declared shield and encrypts it to every current master identity, as `edit` does: to its public key when the manifest pairs one, and to the identity file otherwise. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
+`rekey` decrypts every declared shield and encrypts it to every current master identity and extra encryption pubkey, as `edit` does: to an identity's public key when the manifest pairs one, and to the identity file otherwise. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
 
 To rotate master identities:
 

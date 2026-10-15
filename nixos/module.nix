@@ -69,6 +69,16 @@ in
       '';
     };
 
+    extraEncryptionPubkeys = mkOption {
+      type = types.listOf (types.either types.path types.str);
+      default = [ ];
+      description = ''
+        Public keys every shield is also encrypted to and that never
+        decrypt, such as an offline backup key. A path or an absolute
+        string names a recipients file; any other string is a public key.
+      '';
+    };
+
     dir = mkOption {
       type = types.path;
       description = ''
