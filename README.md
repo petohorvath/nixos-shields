@@ -178,7 +178,7 @@ age.shields.masterIdentities = [
 ];
 ```
 
-A YubiKey or FIDO2 identity stub given as a path inside the flake needs no `pubkey`: the manifest reads it from the stub's `Recipient:` or `public key:` comment, so encrypting never touches the hardware.
+A YubiKey or FIDO2 identity stub needs no `pubkey`: when encrypting, `nixos-shields` [reads it](docs/cli.md#public-keys-from-identity-stubs) from the stub's `Recipient:` or `public key:` comment, so encrypting never touches the hardware.
 
 A master identity outside the flake root is an absolute path string. Plain keys belong there, since a path inside the flake root is committed and copied into the Nix store with the flake:
 

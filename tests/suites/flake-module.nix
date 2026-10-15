@@ -32,7 +32,8 @@ let
     };
   };
 
-  # A flake root holding identity stub fixtures, which the manifest reads.
+  # A flake root holding a YubiKey identity stub and a binary
+  # passphrase-protected identity.
   stubFlakeRoot = ../fixtures/flake;
   stubPath = name: stubFlakeRoot + "/master-identities/${name}";
 
@@ -171,121 +172,20 @@ in
     };
   };
 
-  testManifestReadsYubikeyStubPubkey = {
-    expr = stubManifestIdentities [ (stubPath "yubikey.txt") ];
-    expected = [
-      {
-        identity = "master-identities/yubikey.txt";
-        pubkey = "age1yubikey1qwpx8z4xg2cqnjztq8s0hyum7c3g6dc2zc6t6r4ykhxkk0wp7hm6y5zskw2";
-      }
+  # The manifest reads no identity file, so an undeclared stub's public
+  # key is null, and a binary identity, which Nix cannot read, is fine.
+  testManifestLeavesUndeclaredStubPubkeyNull = {
+    expr = stubManifestIdentities [
+      (stubPath "yubikey.txt")
+      (stubPath "binary-passphrase-protected.age")
     ];
-  };
-
-  testManifestReadsFido2StubPubkey = {
-    expr = stubManifestIdentities [ (stubPath "fido2.txt") ];
-    expected = [
-      {
-        identity = "master-identities/fido2.txt";
-        pubkey = "age1v9n6xd9kw38mk5qv4n2rw6fp0yq3xzjhz2s5h3kq7rjlgh0vtcxsqf3x2n";
-      }
-    ];
-  };
-
-  # Stubs with zero or several keys or identities, and a plain age key
-  # with a FIDO2-like comment, are not guessed at.
-  testManifestLeavesAmbiguousStubPubkeysNull = {
-    expr = map (entry: entry.pubkey) (
-      stubManifestIdentities (
-        map stubPath [
-          "yubikey-without-recipient.txt"
-          "yubikey-several-recipients.txt"
-          "yubikey-several-identities.txt"
-          "fido2-without-public-key.txt"
-          "fido2-several-public-keys.txt"
-          "age-key.txt"
-        ]
-      )
-    );
-    expected = [
-      null
-      null
-      null
-      null
-      null
-      null
-    ];
-  };
-
-  # A configuration listing the stub alone does not conflict with one
-  # that declares a different key.
-  testManifestPrefersDeclaredPubkeyToStub = {
-    expr =
-      (shieldsLib.mkManifest {
-        self.outPath = stubFlakeRoot;
-        configurations = {
-          alpha.config.age.shields.masterIdentities = [ (stubPath "yubikey.txt") ];
-          beta.config.age.shields.masterIdentities = [
-            {
-              identity = stubPath "yubikey.txt";
-              pubkey = "age1yubikey1declared";
-            }
-          ];
-        };
-      }).masterIdentities;
-    expected = [
-      {
-        identity = "master-identities/yubikey.txt";
-        pubkey = "age1yubikey1declared";
-      }
-    ];
-  };
-
-  # Only paths are read, so a string naming a stub keeps a null key.
-  testManifestDoesNotReadStringIdentities = {
-    expr = stubManifestIdentities [ (toString (stubPath "yubikey.txt")) ];
     expected = [
       {
         identity = "master-identities/yubikey.txt";
         pubkey = null;
       }
-    ];
-  };
-
-  # Nix cannot read a file holding a NUL byte, such as a binary
-  # passphrase-protected identity, into a string, and no Nix builtin
-  # tolerates it, so the manifest fails naming the file.
-  testManifestRejectsUnpairedBinaryIdentity = {
-    expr = stubManifestIdentities [ (stubPath "binary-passphrase-protected.age") ];
-    expectedError.msg = "binary-passphrase-protected\\.age' cannot be represented as a Nix string";
-  };
-
-  # A declared public key means the file is never read.
-  testManifestAcceptsPairedBinaryIdentity = {
-    expr = stubManifestIdentities [
-      {
-        identity = stubPath "binary-passphrase-protected.age";
-        pubkey = "age1passphrase";
-      }
-    ];
-    expected = [
       {
         identity = "master-identities/binary-passphrase-protected.age";
-        pubkey = "age1passphrase";
-      }
-    ];
-  };
-
-  # A stub path outside the flake root is not part of the flake's
-  # source, so it is never read, though the file exists.
-  testManifestDoesNotReadIdentitiesOutsideRoot = {
-    expr =
-      (shieldsLib.mkManifest {
-        self.outPath = stubFlakeRoot + "/nested-root";
-        configurations.alpha.config.age.shields.masterIdentities = [ (stubPath "yubikey.txt") ];
-      }).masterIdentities;
-    expected = [
-      {
-        identity = toString (stubPath "yubikey.txt");
         pubkey = null;
       }
     ];

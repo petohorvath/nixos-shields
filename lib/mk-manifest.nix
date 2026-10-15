@@ -18,11 +18,11 @@
   checkout. masterIdentities combines every configuration's list in
   configuration name order, each identity once as { identity, pubkey },
   so the tool encrypts every shield to all of them. pubkey is the public
-  key any entry pairs the identity with; two different keys for one
-  identity fail evaluation. Without one, it is the key read from a
-  YubiKey or FIDO2 stub given as a path inside the flake root, or else
-  null. extraEncryptionPubkeys combines every
-  configuration's list the same way, each entry once, as { pubkey } for
+  key any entry pairs the identity with, or else null; two different
+  keys for one identity fail evaluation. No identity file is read: the
+  tool reads a YubiKey or FIDO2 stub's public key itself when it
+  encrypts. extraEncryptionPubkeys combines every configuration's list
+  the same way, each entry once, as { pubkey } for
   a public key or { recipientsFile } for a recipients file, whose
   location follows the master identity rule.
 */
@@ -96,12 +96,6 @@ let
     else
       toRelativeLocationOrAbsolute given;
 
-  # Only a path inside the root may be read: it belongs to the flake's
-  # source, so reading it keeps building the manifest pure. A string, or
-  # anything outside the root, is never read.
-  toReadablePathOrNull =
-    identity: if isPath identity && isInsideRoot (toAbsoluteLocation identity) then identity else null;
-
   # A path or an absolute string names a recipients file; any other
   # string is a public key.
   toExtraEncryptionPubkeyEntry =
@@ -122,9 +116,9 @@ let
     );
 in
 {
-  masterIdentities = combineMasterIdentities {
-    inherit toIdentityLocation toReadablePathOrNull;
-  } (configurationEntries "masterIdentities");
+  masterIdentities = combineMasterIdentities { inherit toIdentityLocation; } (
+    configurationEntries "masterIdentities"
+  );
   extraEncryptionPubkeys = foldl' addUnique [ ] (
     map toExtraEncryptionPubkeyEntry (configurationEntries "extraEncryptionPubkeys")
   );

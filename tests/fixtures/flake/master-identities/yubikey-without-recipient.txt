@@ -1,3 +1,0 @@
-#       Serial: 12345678, Slot: 1
-#         Name: age identity 1a2b3c4d
-AGE-PLUGIN-YUBIKEY-1QXQPZ9TAZNG7SEQXYXR5XJ

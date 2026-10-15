@@ -19,9 +19,22 @@ Usage: nixos-shields [--flake <directory>] <command>
 
 The tool runs against the flake in the current directory, or against `--flake <directory>`, given before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo` or `path:...`, and directories inside `/nix/store`, are refused. The tool evaluates the flake's `shields` [manifest](reference.md#manifest) once per command and resolves its relative file locations against the checkout. A master identity or recipients file outside the flake root has an absolute location in the manifest and is used where it lies.
 
-Encryption presents an identity file only when the manifest pairs no public key with it, and fails when that file does not exist. Decryption tries every identity file that exists, so an identity paired with a public key, such as a teammate's, need not be on disk. A misspelled identity paired with a public key is skipped the same way, without a message, and fails only when no identity can decrypt.
+Encryption targets an identity's public key when the manifest pairs one, or when the identity file is an [identity stub](#public-keys-from-identity-stubs) holding one. Otherwise it presents the identity file, and fails when that file does not exist. Decryption tries every identity file that exists, so an identity paired with a public key, such as a teammate's, need not be on disk. A misspelled identity paired with a public key is skipped the same way, without a message, and fails only when no identity can decrypt.
 
 Encryption also targets every [extra encryption pubkey](reference.md#extra-encryption-pubkeys) in the manifest: a public key directly, and a recipients file through rage's `--recipients-file`, which fails when the file does not exist. Decryption never uses them.
+
+## Public keys from identity stubs
+
+When the manifest pairs no public key with a master identity, encryption reads the identity file, inside or outside the flake root, and takes the public key from a YubiKey or FIDO2 identity stub, following agenix-rekey's rules:
+
+| Stub | Identity line | Public key |
+| --- | --- | --- |
+| YubiKey, from `age-plugin-yubikey` | `AGE-PLUGIN-YUBIKEY-…` | The `age1yubikey1…` key in a `Recipient: age1yubikey1…` comment |
+| FIDO2, from `age-plugin-fido2-hmac` | `AGE-PLUGIN-FIDO2-HMAC-…` | The `age1…` key in a `public key: age1…` comment |
+
+Encryption then targets that key, so it never touches the hardware; a YubiKey recipient still needs `age-plugin-yubikey` on `PATH`. A declared `pubkey` wins over the stub's comment.
+
+The file must hold exactly one line starting with `AGE-`, the stub's identity line, and exactly one public key in such comments. Encryption presents any other file to rage as an identity, and never guesses which key to encrypt to. This includes a stub without the comment, a stub with several keys or identities, and a plain age key, whose `public key:` comment does not make it a FIDO2 stub. Unlike agenix-rekey, a stub without exactly one key is not an error. A binary identity file, such as a passphrase-protected age identity written without `--armor`, is read like any other.
 
 ## Unencrypted private keys
 
@@ -62,7 +75,7 @@ EDITOR='code --wait' nixos-shields edit alpha:facts
 
 - An unchanged edit leaves the shield file byte-identical.
 - An existing shield is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity).
-- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds. It encrypts to an identity's public key when the manifest pairs one, and presents the identity file otherwise. It also encrypts to every extra encryption pubkey.
+- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds. It encrypts to an identity's public key when the manifest pairs one or [reads one from its stub](#public-keys-from-identity-stubs), and presents the identity file otherwise. It also encrypts to every extra encryption pubkey.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
 
@@ -73,7 +86,7 @@ nixos-shields rekey
 nixos-shields rekey --identity /path/to/previous-identity.txt
 ```
 
-`rekey` decrypts every declared shield and encrypts it to every current master identity and extra encryption pubkey, as `edit` does: to an identity's public key when the manifest pairs one, and to the identity file otherwise. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
+`rekey` decrypts every declared shield and encrypts it to every current master identity and extra encryption pubkey, as `edit` does: to an identity's public key when the manifest pairs one or its stub holds one, and to the identity file otherwise. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
 
 To rotate master identities:
 
