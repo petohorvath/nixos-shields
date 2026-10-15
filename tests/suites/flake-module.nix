@@ -53,6 +53,7 @@ let
         pubkey = null;
       }
     ];
+    extraEncryptionPubkeys = [ ];
     configurations = {
       alpha.files = {
         facts = "shields/alpha.nix.age";
@@ -110,6 +111,36 @@ in
         identity = "master-identities/beta.txt";
         pubkey = null;
       }
+    ];
+  };
+
+  # Each configuration's list in name order, each entry once. A recipients
+  # file inside the root, as a path or a string, becomes relative to it;
+  # one outside stays absolute. Other strings are public keys.
+  testManifestCombinesExtraEncryptionPubkeys = {
+    expr =
+      (shieldsLib.mkManifest {
+        self.outPath = root;
+        configurations = {
+          beta.config.age.shields.extraEncryptionPubkeys = [
+            "age1beta"
+            "${root}/recipients/../recipients/team.txt"
+            "age1backup"
+            "/home/user/.config/age/recipients.txt"
+          ];
+          alpha.config.age.shields.extraEncryptionPubkeys = [
+            "age1backup"
+            (flakeRoot + "/recipients/team.txt")
+            /home/user/.config/age/../age/recipients.txt
+          ];
+          unshielded.config.networking.hostName = "unshielded";
+        };
+      }).extraEncryptionPubkeys;
+    expected = [
+      { pubkey = "age1backup"; }
+      { recipientsFile = "recipients/team.txt"; }
+      { recipientsFile = "/home/user/.config/age/recipients.txt"; }
+      { pubkey = "age1beta"; }
     ];
   };
 
@@ -307,6 +338,7 @@ in
       configurations = { };
       shields = {
         masterIdentities = [ ];
+        extraEncryptionPubkeys = [ ];
         configurations = { };
       };
     };
@@ -333,6 +365,7 @@ in
     };
     expected = {
       masterIdentities = [ ];
+      extraEncryptionPubkeys = [ ];
       configurations.unshielded.files = { };
     };
   };
@@ -352,6 +385,7 @@ in
           pubkey = null;
         }
       ];
+      extraEncryptionPubkeys = [ ];
       configurations.alpha.files.shared = "shields/shared.nix.age";
     };
   };

@@ -53,10 +53,16 @@ in
 {
   testDefaults = {
     expr = {
-      inherit (evalNixosModule [ ]) masterIdentities files values;
+      inherit (evalNixosModule [ ])
+        masterIdentities
+        extraEncryptionPubkeys
+        files
+        values
+        ;
     };
     expected = {
       masterIdentities = [ ];
+      extraEncryptionPubkeys = [ ];
       files = { };
       values = { };
     };
@@ -140,6 +146,26 @@ in
       type = "ThrownError";
       msg = "age\\.shields\\.masterIdentities.*is not of type";
     };
+  };
+
+  # Public keys and recipients files, as paths or absolute strings, read
+  # back as given.
+  testExtraEncryptionPubkeysReadBack = {
+    expr =
+      (evalNixosModule [
+        {
+          age.shields.extraEncryptionPubkeys = [
+            "age1backup"
+            /srv/recipients/backup.txt
+            "/srv/recipients/team.txt"
+          ];
+        }
+      ]).extraEncryptionPubkeys;
+    expected = [
+      "age1backup"
+      /srv/recipients/backup.txt
+      "/srv/recipients/team.txt"
+    ];
   };
 
   testDirReadsBack = {
