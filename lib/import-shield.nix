@@ -20,19 +20,9 @@ identities: file:
 let
   coerceMasterIdentity = import ./coerce-master-identity.nix;
 
-  # The builtin takes paths, and agenix-rekey gives absolute strings. A
-  # path made from one names the same file without copying it.
-  toIdentityPath =
-    entry:
-    let
-      inherit (coerceMasterIdentity entry) identity;
-    in
-    if builtins.isPath identity then
-      identity
-    else if builtins.substring 0 1 identity == "/" then
-      /. + builtins.unsafeDiscardStringContext identity
-    else
-      throw "nixos-shields: master identity ${identity} must be a path or an absolute path string";
+  # The builtin takes paths and absolute path strings, so a key outside
+  # the flake is named in place, never copied into the store.
+  identityOf = entry: (coerceMasterIdentity entry).identity;
 
   extraBuiltins = builtins.extraBuiltins or null;
   # A loaded plugin with no extra-builtins file evaluates to null.
@@ -51,4 +41,4 @@ else if identities == [ ] then
 else if !hasBuiltin then
   throw noBuiltin
 else
-  extraBuiltins.importShield (map toIdentityPath identities) file
+  extraBuiltins.importShield (map identityOf identities) file

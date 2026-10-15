@@ -24,7 +24,7 @@ The table lists the consumer-facing outputs. The `checks`, `devShells`, and `for
 
 ### `lib.importShield`
 
-`importShield identities file` decrypts `file` with any of the master identities in the list `identities`, subject to the [primary identity](#primary-identity) variables, and returns the value of the Nix expression it holds. `identities` takes the [entry forms](#master-identity-entries) of `age.shields.masterIdentities`; only the identity files are used, since a public key cannot decrypt. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
+`importShield identities file` decrypts `file` with any of the master identities in the list `identities`, subject to the [primary identity](#primary-identity) variables, and returns the value of the Nix expression it holds. `identities` takes the [entry forms](#master-identity-entries) of `age.shields.masterIdentities`; only the identity files are used, since a public key cannot decrypt. The builtin `builtins.extraBuiltins.importShield` takes the identity files as paths or absolute path strings, and the shield file as a path whose base name ends in `.nix.age`; neither is copied into the store. Decryption skips identity files that do not exist, such as a teammate's paired with a public key, and fails when none does. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
 
 ```nix
 nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/beta.nix.age
@@ -83,9 +83,10 @@ An entry of `age.shields.masterIdentities` uses the names of agenix-rekey's `age
 | Form | Meaning |
 | --- | --- |
 | A path, such as `./master-identities/yubikey-1.txt` | The identity file alone |
+| An absolute path string, such as `"/home/alice/.config/age/shields.txt"` | The identity file alone, usually outside the flake root |
 | `{ identity; pubkey; }` | The identity file, a path or an absolute path string, paired with its public key, a string; `pubkey` defaults to `null` |
 
-The option reads back every entry as an attribute set, a path becoming `{ identity = <path>; pubkey = null; }`. Decryption uses only `identity`. When `pubkey` is set, `nixos-shields edit` and `rekey` encrypt to it instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt:
+The option reads back every entry as an attribute set, a path or a string becoming `{ identity = <path or string>; pubkey = null; }`. Decryption uses only `identity`. When `pubkey` is set, `nixos-shields edit` and `rekey` encrypt to it instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt:
 
 ```nix
 age.shields.masterIdentities = [
@@ -96,6 +97,8 @@ age.shields.masterIdentities = [
   }
 ];
 ```
+
+An identity outside the flake root is never committed or copied into the Nix store: evaluation hands its location to the builtin, and the manifest keeps it absolute. Keep plain age keys and SSH keys there, and commit only YubiKey identity stubs and passphrase-protected identities under the flake root. A path inside the flake is copied into the store with the flake source.
 
 A string that is not an absolute path fails evaluation.
 
@@ -109,7 +112,7 @@ A string that is not an absolute path fails evaluation.
 
 ## Manifest
 
-The manifest lists the master identities and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location is a string relative to the consumer's flake root; a location outside that root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
+The manifest lists the master identities and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location inside the consumer's flake root is a string relative to it. A master identity outside the root keeps its normalized absolute location, so the tool finds it from any working directory; a shield file outside the root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
 
 `masterIdentities` combines every configuration's `age.shields.masterIdentities`, each identity once, in configuration name order. Each entry is an object with the identity file's location as `identity` and its public key as `pubkey`, or `null` when no configuration pairs it with one. Two configurations that pair one identity with different public keys fail evaluation with a message naming the identity. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
 

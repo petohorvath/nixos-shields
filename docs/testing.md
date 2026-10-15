@@ -13,7 +13,7 @@
 
 ## `integration`
 
-The check verifies that the wrapped Nix's multi-call binaries keep their identity and load the builtin. It then evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, both with the default extra-builtins file and through a consumer's combined file supplied to `lib.mkNix`. With the default file, it also gives the identity as an attribute set entry whose `identity` is a path or an absolute string. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+The check verifies that the wrapped Nix's multi-call binaries keep their identity and load the builtin. It then evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, both with the default extra-builtins file and through a consumer's combined file supplied to `lib.mkNix`. With the default file, it also gives the identity as an attribute set entry whose `identity` is a path or an absolute string, calls the builtin directly with an absolute string identity and with a relative one, which fails, and confirms that neither the fixture nor the identity is copied into the store. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
 
 ## `cli`
 
@@ -27,7 +27,8 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 - a passphrase-protected identity paired with its public key in the manifest, which `edit` and `rekey` encrypt to without a prompt and whose key then opens every shield
 - `rekey` decrypting with every master identity when the first cannot open the shields
 - the primary identity variables in `edit` and in evaluation through the wrapped Nix
-- no shield file copied into the store
+- a master identity outside the flake root, kept absolute in the manifest, working for `edit`, `rekey` from another directory, and evaluation through the wrapped Nix, beside a teammate's identity paired with its public key whose file does not exist
+- no shield file and no outside identity copied into the store
 - decrypt cache removal
 
 ## `tests`
@@ -35,7 +36,7 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 The check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites without the plugin, against the flake's public outputs:
 
 - `nixosModule` drives the option tree through `evalModules`. It covers defaults, the attribute set form every master identity entry reads back as, including agenix-rekey's `age.rekey.masterIdentities` value, a relative string failing, wiring files from `dir`, `values` being read-only, and the failures a missing file or an empty identity list produce.
-- `flakeModule` evaluates the flake-parts option tree. It covers the manifest it publishes, `shields.configurations` being its only option, its defaults, and selecting configurations from another output. It also checks `lib.mkManifest` directly for plain flakes: relative locations, the `identity` and `pubkey` entries it combines from configurations without duplicates, the failure for one identity paired with different public keys, and the removed `masterIdentities` and `files` arguments failing.
+- `flakeModule` evaluates the flake-parts option tree. It covers the manifest it publishes, `shields.configurations` being its only option, its defaults, and selecting configurations from another output. It also checks `lib.mkManifest` directly for plain flakes: relative locations, identities outside the flake root staying absolute while shield files outside it fail, a relative identity string failing, the `identity` and `pubkey` entries it combines from configurations without duplicates, the failure for one identity paired with different public keys, and the removed `masterIdentities` and `files` arguments failing.
 
 ## `decrypt-cache`
 

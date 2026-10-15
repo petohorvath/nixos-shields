@@ -92,6 +92,16 @@ resolve_file() {
   echo "$file"
 }
 
+# An identity outside the checkout, such as a key under the home
+# directory, is absolute in the manifest; one inside it is relative.
+resolve_identity() {
+  if [[ $1 == /* ]]; then
+    realpath -m -- "$1"
+  else
+    resolve_file "$1"
+  fi
+}
+
 manifest=$(
   cd "$flake_dir" || exit
   nix eval --json --extra-experimental-features 'nix-command flakes' \
@@ -156,23 +166,24 @@ if [[ $command_name == edit ]]; then
   [[ -n ${EDITOR:-} ]] || die "set EDITOR to the editor command to run"
 fi
 
-# Decryption presents every identity file. Encryption targets an
-# identity's public key when the manifest pairs one, so a passphrase or
-# a hardware key is not needed, and presents the identity file otherwise.
+# Encryption targets an identity's public key when the manifest pairs
+# one, so a passphrase or a hardware key is not needed, and presents the
+# identity file otherwise. Decryption presents every identity file on
+# disk; one paired with a public key, such as a teammate's, may be absent.
 identity_args=()
 recipient_args=()
 while IFS= read -r entry; do
-  identity=$(resolve_file "$(jq -r .identity <<< "$entry")")
-  [[ -f $identity ]] || die "master identity does not exist: $identity"
-  identity_args+=(--identity "$identity")
+  identity=$(resolve_identity "$(jq -r .identity <<< "$entry")") || exit
   pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
   if [[ -n $pubkey ]]; then
     recipient_args+=(--recipient "$pubkey")
   else
+    [[ -f $identity ]] || die "master identity does not exist: $identity"
     recipient_args+=(--identity "$identity")
   fi
+  [[ ! -f $identity ]] || identity_args+=(--identity "$identity")
 done < <(jq -c '.masterIdentities[]' <<< "$manifest")
-[[ ${#identity_args[@]} -gt 0 ]] || die "no master identity declared"
+[[ ${#recipient_args[@]} -gt 0 ]] || die "no master identity declared"
 
 # The primary identity, relative to the caller, is tried first or alone.
 primary_identity=${NIXOS_SHIELDS_PRIMARY_IDENTITY:-}
@@ -223,6 +234,11 @@ case $(realpath -- "$workdir") in
 esac
 plaintext=$workdir/shield.nix
 
+decrypt_file() {
+  [[ ${#decryption_args[@]} -gt 0 ]] || die "no master identity file exists to decrypt $1"
+  rage --decrypt "${decryption_args[@]}" --output "$plaintext" "$1"
+}
+
 # Encrypt beside the destination, then atomically replace it. A failed
 # encryption cannot truncate the original, and the EXIT trap removes partials.
 encrypt_file() {
@@ -236,7 +252,7 @@ encrypt_file() {
 
 if [[ $command_name == rekey ]]; then
   for file in "${files[@]}"; do
-    rage --decrypt "${decryption_args[@]}" --output "$plaintext" "$file"
+    decrypt_file "$file"
     encrypt_file "$file"
     echo "Rekeyed: ${file#"$flake_dir/"}"
   done
@@ -246,7 +262,7 @@ fi
 existing=false
 if [[ -f $file ]]; then
   existing=true
-  rage --decrypt "${decryption_args[@]}" --output "$plaintext" "$file"
+  decrypt_file "$file"
 else
   echo '{}' > "$plaintext"
 fi

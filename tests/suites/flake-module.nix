@@ -146,15 +146,52 @@ in
     expectedError.msg = "unexpected argument 'files'";
   };
 
-  testManifestRejectsEscapingConfigurationIdentity = {
+  # An identity outside the flake root, such as a plain key under the
+  # home directory, keeps its normalized absolute location, so the tool
+  # finds it from any working directory; inside ones become relative.
+  testManifestKeepsOutsideIdentitiesAbsolute = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = root;
-        configurations.alpha.config.age.shields.masterIdentities = [ "${root}/../outside.txt" ];
+        configurations = {
+          alpha.config.age.shields.masterIdentities = [
+            "${root}/../outside.txt"
+            identityPath
+          ];
+          beta.config.age.shields.masterIdentities = [
+            {
+              identity = /home/user/.config/age/../age/key.txt;
+              pubkey = "age1home";
+            }
+            "/example/outside.txt"
+          ];
+        };
+      }).masterIdentities;
+    expected = [
+      {
+        identity = "/example/outside.txt";
+        pubkey = null;
+      }
+      {
+        identity = "master-identities/throwaway.txt";
+        pubkey = null;
+      }
+      {
+        identity = "/home/user/.config/age/key.txt";
+        pubkey = "age1home";
+      }
+    ];
+  };
+
+  testManifestRejectsRelativeIdentityString = {
+    expr =
+      (shieldsLib.mkManifest {
+        self.outPath = root;
+        configurations.alpha.config.age.shields.masterIdentities = [ "master-identities/relative.txt" ];
       }).masterIdentities;
     expectedError = {
       type = "ThrownError";
-      msg = "manifest path /example/outside\\.txt is outside flake root ${root}$";
+      msg = "master identity master-identities/relative\\.txt must be a path or an absolute path string";
     };
   };
 

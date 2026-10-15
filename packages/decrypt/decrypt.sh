@@ -47,10 +47,16 @@ if [[ ! -e $out ]]; then
       exit 1
     }
   else
+    # An identity paired with a public key, such as a teammate's key
+    # outside the flake root, may be absent from this machine.
     for identity in "${identities[@]}"; do
-      args+=(--identity "$identity")
+      [[ ! -f $identity ]] || args+=(--identity "$identity")
     done
   fi
+  [[ ${#args[@]} -gt 0 ]] || {
+    echo "nixos-shields-decrypt: no master identity file exists to decrypt $file" >&2
+    exit 1
+  }
   # Decrypt beside the entry and move it in place so an interrupted
   # decryption never leaves a truncated plaintext that reads as a hit.
   partial=$(mktemp "$cache_dir/.partial.XXXXXX")
