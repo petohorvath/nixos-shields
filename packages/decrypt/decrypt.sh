@@ -4,6 +4,10 @@
 # (or, with --print-out-path, the cache location). The cache entry is
 # keyed by the file's content hash and base name, so an unchanged file
 # never invokes the decryptor again, wherever the file lives.
+#
+# NIXOS_SHIELDS_PRIMARY_IDENTITY names an identity file tried before the
+# given ones; with NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true, it is the only
+# one. Neither changes the cache key.
 
 print_out_path=false
 if [[ ${1:-} == "--print-out-path" ]]; then
@@ -28,10 +32,25 @@ mkdir -p "$cache_dir"
 }
 
 if [[ ! -e $out ]]; then
+  primary=${NIXOS_SHIELDS_PRIMARY_IDENTITY:-}
   args=()
-  for identity in "${identities[@]}"; do
-    args+=(--identity "$identity")
-  done
+  if [[ -n $primary ]]; then
+    [[ -f $primary ]] || {
+      echo "nixos-shields-decrypt: primary identity does not exist: $primary" >&2
+      exit 1
+    }
+    args+=(--identity "$primary")
+  fi
+  if [[ ${NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY:-} == true ]]; then
+    [[ -n $primary ]] || {
+      echo "nixos-shields-decrypt: NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY" >&2
+      exit 1
+    }
+  else
+    for identity in "${identities[@]}"; do
+      args+=(--identity "$identity")
+    done
+  fi
   # Decrypt beside the entry and move it in place so an interrupted
   # decryption never leaves a truncated plaintext that reads as a hit.
   partial=$(mktemp "$cache_dir/.partial.XXXXXX")
