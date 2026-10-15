@@ -33,7 +33,7 @@ prints `alpha`'s decrypted shield, and the same command for `beta` fails naming 
 
 Replace the final attribute with `.#nixosConfigurations.beta.config.age.shields.values.shared` to read the shared shield through `beta`, or with `.#shields` to list the manifest. The manifest includes the relative locations of every configuration's shield files, including `beta`'s missing file, and can also be evaluated with ordinary Nix. Each configuration uses the shared domain in `networking.search`.
 
-`.#deploy.nodes.alpha.hostname` reads `alpha`'s domain from outside the configuration, in the shape deploy-rs reads its nodes from. The example has no deploy-rs input or profiles; the attribute only shows where such a value comes from.
+`.#deploy.nodes.alpha.hostname` reads `alpha`'s domain from outside the configuration, in the shape deploy-rs reads its nodes from. Only `alpha` is a node, since `beta`'s own shield file is missing. The example has no deploy-rs input or profiles; the attribute only shows where such a value comes from.
 
 ## Shield editing
 
