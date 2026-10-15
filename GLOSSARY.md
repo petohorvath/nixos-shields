@@ -17,7 +17,7 @@ A runtime credential (password, token, private key) that must never reach the Ni
 _Avoid_: Using "secret" for anything a shield holds
 
 **Master identity**:
-An age identity file able to decrypt every shield in a repository: a YubiKey plugin identity stub, an SSH key, or a plain age key. Each configuration declares its own, and every shield is encrypted to those of all configurations combined, so any one of them can open any shield.
+An age identity file able to decrypt every shield in a repository: a YubiKey plugin identity stub, an SSH key, or a plain age key. Each configuration declares its own, and every shield is encrypted to those of all configurations combined, so any one of them can open any shield. It lies inside the flake root, committed with the shields, or outside it, such as under the home directory. A plain private key belongs outside, where it is never committed or copied into the Nix store.
 _Avoid_: Key, recipient, pubkey
 
 **Configuration**:

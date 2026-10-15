@@ -32,7 +32,7 @@ The flake's default package is the `nixos-shields` command-line tool, and its `n
 nix shell github:petohorvath/nixos-shields github:petohorvath/nixos-shields#nix
 ```
 
-Before declaring shields, commit at least one master identity file under the flake root. Every location the tool reads, master identities included, must lie inside the flake root.
+Before declaring shields, create at least one master identity. A YubiKey or FIDO2 identity stub, or a passphrase-protected identity, can be committed under the flake root. Keep a plain age key or an SSH key outside the flake root, for example under the home directory, and declare it as an absolute path string, so it is never committed or copied into the Nix store. Shield files must lie inside the flake root.
 
 ## Usage
 
@@ -179,6 +179,15 @@ age.shields.masterIdentities = [
 ```
 
 A YubiKey or FIDO2 identity stub given as a path inside the flake needs no `pubkey`: the manifest reads it from the stub's `Recipient:` or `public key:` comment, so encrypting never touches the hardware.
+
+A master identity outside the flake root is an absolute path string. Plain keys belong there, since a path inside the flake root is committed and copied into the Nix store with the flake:
+
+```nix
+age.shields.masterIdentities = [
+  ./master-identities/yubikey-1.txt
+  "/home/alice/.config/age/shields.txt"
+];
+```
 
 [docs/reference.md](docs/reference.md) lists every option of both modules, the library functions, and the manifest format.
 

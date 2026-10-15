@@ -17,7 +17,9 @@ Usage: nixos-shields [--flake <directory>] <command>
 
 ## Flake selection
 
-The tool runs against the flake in the current directory, or against `--flake <directory>`, given before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo` or `path:...`, and directories inside `/nix/store`, are refused. The tool evaluates the flake's `shields` [manifest](reference.md#manifest) once per command and resolves its file locations against the checkout.
+The tool runs against the flake in the current directory, or against `--flake <directory>`, given before or after the command. The directory must be a local checkout containing `flake.nix`; flake references such as `github:owner/repo` or `path:...`, and directories inside `/nix/store`, are refused. The tool evaluates the flake's `shields` [manifest](reference.md#manifest) once per command and resolves its relative file locations against the checkout. A master identity outside the flake root has an absolute location in the manifest and is used where it lies.
+
+Encryption presents an identity file only when the manifest pairs no public key with it, and fails when that file does not exist. Decryption tries every identity file that exists, so an identity paired with a public key, such as a teammate's, need not be on disk.
 
 ## Addresses
 

@@ -275,11 +275,62 @@ expectFailure 'No matching keys found' evalWithPrimaryOnly "$TMPDIR/old identity
 [[ $(evalWithPrimaryOnly "$TMPDIR/primary.txt") == '"alpha.example.test"' ]] \
   || fail "evaluation did not decrypt with the primary identity"
 
+# A plain key outside the flake root, given as an absolute path string,
+# stays absolute in the manifest and is found from any working directory.
+outside_identity="$TMPDIR/outside identities/outside-identity.txt"
+mkdir -p "$(dirname "$outside_identity")"
+rage-keygen -o "$outside_identity" 2>/dev/null
+sed -i "s@\\[ ./master-identities/backup.txt@[ \"$outside_identity\" ./master-identities/backup.txt@" flake.nix
+evalExample shields | jq -e --arg identity "$outside_identity" \
+  '.masterIdentities[0] == {identity: $identity, pubkey: null}' > /dev/null \
+  || fail "the manifest does not keep the outside identity absolute"
+(
+  cd "$TMPDIR" || exit
+  nixos-shields --flake "$consumer" rekey < /dev/null
+)
+for file in shields/*.nix.age; do
+  rage --decrypt --identity "$outside_identity" "$file" > /dev/null \
+    || fail "rekey omitted the outside identity for $file"
+done
+
+# With the outside identity the only one with a file on disk, edit, rekey,
+# and evaluation decrypt with it alone. A teammate's identity paired with
+# its public key need not exist, as nothing presents its file.
+rage-keygen -o "$TMPDIR/teammate.txt" 2>/dev/null
+teammate_pubkey=$(rage-keygen -y "$TMPDIR/teammate.txt")
+sed -i '/alpha-only.txt/d' flake.nix
+sed -i "s@masterIdentities = \\[ \"$outside_identity\" .*\\];@masterIdentities = [ \"$outside_identity\" { identity = \"$TMPDIR/absent/teammate.txt\"; pubkey = \"$teammate_pubkey\"; } ];@" flake.nix
+evalExample shields | jq -e --arg identity "$outside_identity" --arg pubkey "$teammate_pubkey" \
+  --arg teammate "$TMPDIR/absent/teammate.txt" '.masterIdentities == [
+    {identity: $identity, pubkey: null}, {identity: $teammate, pubkey: $pubkey}]' > /dev/null \
+  || fail "the manifest does not declare only the outside identities"
+EDITOR="bash '$TMPDIR/scripted editor' shared" nixos-shields edit alpha:shared
+[[ $(rage --decrypt --identity "$outside_identity" shields/shared.nix.age) == '{ domain = "edited.example.test"; }' ]] \
+  || fail "edit with the outside identity did not encrypt to it"
+if rage --decrypt --identity master-identities/backup.txt shields/shared.nix.age > /dev/null 2>&1; then
+  fail "edit still encrypted to an identity no longer declared"
+fi
+(
+  cd "$TMPDIR" || exit
+  nixos-shields --flake "$consumer" rekey
+)
+for file in shields/*.nix.age; do
+  for identity in "$outside_identity" "$TMPDIR/teammate.txt"; do
+    rage --decrypt --identity "$identity" "$file" > /dev/null \
+      || fail "rekey with the outside identity omitted $identity for $file"
+  done
+done
+outside_cache=$(mktemp -d "$TMPDIR/outside-cache.XXXXXX")
+[[ $(NIXOS_SHIELDS_CACHE_DIR=$outside_cache nix eval --json --no-eval-cache \
+  --extra-experimental-features 'nix-command flakes' \
+  path:.#nixosConfigurations.beta.config.age.shields.values.shared) == '{"domain":"edited.example.test"}' ]] \
+  || fail "evaluation did not decrypt with the outside identity"
+
 # The suffix check inspects the base name, so no evaluation above copied
 # a shield file into the store on its own; the consumer's source tree is
-# the only place one may appear.
-copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age')
-[[ -z $copies ]] || fail "shield file copied into the store: $copies"
+# the only place one may appear. The outside identity appears nowhere.
+copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age' -o -name '*outside-identity*')
+[[ -z $copies ]] || fail "shield file or outside identity copied into the store: $copies"
 
 [[ -n $(find "$NIXOS_SHIELDS_CACHE_DIR" -type f -print -quit) ]] \
   || fail "wrapped evaluation did not populate the decrypt cache"

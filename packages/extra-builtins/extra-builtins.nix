@@ -13,13 +13,17 @@ let
     all
     isList
     isPath
+    isString
     pathExists
     stringLength
     substring
     ;
 
   # nixpkgs lib is not in scope here, so the predicates are hand-rolled.
-  isPathList = list: isList list && all isPath list;
+  # An identity outside the flake is an absolute path string; exec passes
+  # paths and strings alike without copying them into the store.
+  isIdentity = identity: isPath identity || (isString identity && substring 0 1 identity == "/");
+  isIdentityList = list: isList list && all isIdentity list;
 
   hasSuffix =
     suffix: string:
@@ -30,7 +34,7 @@ let
     in
     length >= suffixLength && substring start suffixLength string == suffix;
 
-  badIdentities = "importShield: the master identities must be a list of paths";
+  badIdentities = "importShield: the master identities must be a list of paths or absolute path strings";
   badFile = file: "importShield: shield file must be an existing path: ${toString file}";
   badSuffix = file: "importShield: shield file name must end in .nix.age: ${toString file}";
 in
@@ -44,7 +48,7 @@ in
   */
   importShield =
     identities: file:
-    assert isPathList identities || throw badIdentities;
+    assert isIdentityList identities || throw badIdentities;
     assert (isPath file && pathExists file) || throw (badFile file);
     assert hasSuffix ".nix.age" (baseNameOf file) || throw (badSuffix file);
     exec (
