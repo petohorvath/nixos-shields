@@ -92,8 +92,8 @@ resolve_file() {
   echo "$file"
 }
 
-# An identity outside the checkout, such as a key under the home
-# directory, is absolute in the manifest; one inside it is relative.
+# An identity or recipients file outside the checkout, such as a key under
+# the home directory, is absolute in the manifest; one inside it is relative.
 resolve_identity() {
   if [[ $1 == /* ]]; then
     realpath -m -- "$1"
@@ -217,6 +217,18 @@ while IFS= read -r entry; do
   [[ ! -f $identity ]] || identity_args+=(--identity "$identity")
 done < <(jq -c '.masterIdentities[]' <<< "$manifest")
 [[ ${#recipient_args[@]} -gt 0 ]] || die "no master identity declared"
+
+# Extra encryption pubkeys only receive shields; they never decrypt.
+while IFS= read -r entry; do
+  pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
+  if [[ -n $pubkey ]]; then
+    recipient_args+=(--recipient "$pubkey")
+  else
+    recipients_file=$(resolve_identity "$(jq -r .recipientsFile <<< "$entry")") || exit
+    [[ -f $recipients_file ]] || die "recipients file does not exist: $recipients_file"
+    recipient_args+=(--recipients-file "$recipients_file")
+  fi
+done < <(jq -c '.extraEncryptionPubkeys[]' <<< "$manifest")
 
 # The primary identity, relative to the caller, is tried first or alone.
 primary_identity=${NIXOS_SHIELDS_PRIMARY_IDENTITY:-}

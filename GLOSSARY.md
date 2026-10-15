@@ -20,12 +20,16 @@ _Avoid_: Using "secret" for anything a shield holds
 An age identity file able to decrypt every shield in a repository: a YubiKey plugin identity stub, an SSH key, or a plain age key. Each configuration declares its own, and every shield is encrypted to those of all configurations combined, so any one of them can open any shield. It lies inside the flake root, committed with the shields, or outside it, such as under the home directory. A plain private key belongs outside, where it is never committed or copied into the Nix store.
 _Avoid_: Key, recipient, pubkey
 
+**Extra encryption pubkey**:
+A public key, or a recipients file of public keys, that every shield is encrypted to but that is never used to decrypt, such as an offline backup key or a team's keys. Unlike a master identity, it has no identity file in the flake, so evaluation and editing never try it; its private key opens shields only outside the kit, such as after losing every master identity.
+_Avoid_: Backup identity, extra recipient, master identity
+
 **Configuration**:
 An evaluated NixOS system that can own shields. The consumer decides which attribute set holds them.
 _Avoid_: Host, node, machine
 
 **Manifest**:
-The flake's declared inventory of shields: the master identities of all configurations combined and each configuration's shield files, with file locations relative to the flake root.
+The flake's declared inventory of shields: the master identities and extra encryption pubkeys of all configurations combined and each configuration's shield files, with file locations relative to the flake root.
 _Avoid_: Index, registry, catalogue
 
 **Address**:

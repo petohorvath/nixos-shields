@@ -54,7 +54,7 @@ The result's `passthru` holds `extraBuiltinsFile`, `nix`, and `plugins`.
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `self` | required | The consumer's flake, whose root anchors every location |
-| `configurations` | `{ }` | Evaluated configurations by name; each contributes its `config.age.shields.files` and `masterIdentities` |
+| `configurations` | `{ }` | Evaluated configurations by name; each contributes its `config.age.shields.files`, `masterIdentities`, and `extraEncryptionPubkeys` |
 
 ```nix
 shields = nixos-shields.lib.mkManifest {
@@ -70,6 +70,7 @@ shields = nixos-shields.lib.mkManifest {
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `age.shields.masterIdentities` | list of [master identity entries](#master-identity-entries) | `[ ]` | Age identities, any one of which can decrypt every shield of the configuration, tried in order. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to. |
+| `age.shields.extraEncryptionPubkeys` | list of public key strings or paths | `[ ]` | [Extra encryption pubkeys](#extra-encryption-pubkeys) that every shield is also encrypted to and that are never used to decrypt. |
 | `age.shields.dir` | path | none | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it. |
 | `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. Several configurations can declare the same file, which then has an address in each. |
 | `age.shields.values` | attribute set, read-only | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it. |
@@ -104,19 +105,40 @@ An identity outside the flake root is never committed or copied into the Nix sto
 
 A string that is not an absolute path fails evaluation.
 
+### Extra encryption pubkeys
+
+`age.shields.extraEncryptionPubkeys` accepts the value of agenix-rekey's `age.rekey.extraEncryptionPubkeys`. `nixos-shields edit` and `rekey` encrypt every shield to them as well as to the master identities, so an offline backup key or a team's keys can open every shield. Neither evaluation nor the tool ever decrypts with them, so they are never prompted for.
+
+| Form | Meaning |
+| --- | --- |
+| A string that is not an absolute path, such as `"age1..."` or `"ssh-ed25519 AAAA..."` | A public key |
+| A path, such as `./recipients/team.txt` | A recipients file, one public key per line |
+| An absolute path string, such as `"/home/alice/.config/age/backup.pub"` | A recipients file, usually outside the flake root |
+
+```nix
+age.shields.extraEncryptionPubkeys = [
+  "age1..."
+  ./recipients/team.txt
+];
+```
+
+A recipients file follows the same rule as a master identity: the manifest keeps one inside the flake root relative to it and one outside absolute, and never reads either.
+
 ## flake-parts module
 
 `flakeModules.default` publishes the manifest as the `shields` flake output. It uses the libraries supplied by the consumer's flake-parts and introduces no flake input. Configurations import `nixosModules.default` themselves.
 
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `shields.configurations` | attribute set of evaluated configurations | `config.flake.nixosConfigurations` | Configurations whose shield files and master identities enter the manifest. Override it when the configurations live in another output. |
+| `shields.configurations` | attribute set of evaluated configurations | `config.flake.nixosConfigurations` | Configurations whose shield files, master identities, and extra encryption pubkeys enter the manifest. Override it when the configurations live in another output. |
 
 ## Manifest
 
-The manifest lists the master identities and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location inside the consumer's flake root is a string relative to it. A master identity outside the root keeps its normalized absolute location, so the tool finds it from any working directory; a shield file outside the root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
+The manifest lists the master identities, the extra encryption pubkeys, and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location inside the consumer's flake root is a string relative to it. A master identity or recipients file outside the root keeps its normalized absolute location, so the tool finds it from any working directory; a shield file outside the root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
 
 `masterIdentities` combines every configuration's `age.shields.masterIdentities`, each identity once, in configuration name order. Each entry is an object with the identity file's location as `identity` and its public key as `pubkey`. The public key is the one a configuration pairs the identity with, or else the one [read from an identity stub](#public-keys-from-identity-stubs), or else `null`. Two configurations that pair one identity with different public keys fail evaluation with a message naming the identity. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
+
+`extraEncryptionPubkeys` combines every configuration's `age.shields.extraEncryptionPubkeys` the same way, each entry once, in configuration name order. A public key is an object with its key as `pubkey`, and a recipients file an object with its location as `recipientsFile`. The command-line tool encrypts every shield to them too, a recipients file as rage's `--recipients-file`.
 
 ### Public keys from identity stubs
 
@@ -145,6 +167,7 @@ For the [example consumer](../examples/consumer), `nix eval --json .#shields` re
       "files": { "facts": "shields/beta.nix.age", "shared": "shields/shared.nix.age" }
     }
   },
+  "extraEncryptionPubkeys": [],
   "masterIdentities": [
     { "identity": "master-identities/throwaway.txt", "pubkey": null }
   ]

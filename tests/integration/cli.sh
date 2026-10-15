@@ -369,6 +369,41 @@ for identity in yubikey.txt locked.age ssh-locked; do
 done
 cp "$TMPDIR/flake-before-inside-identities.nix" flake.nix
 
+# Extra encryption pubkeys: alpha declares a backup key as a public key,
+# beta a team's recipients file inside the flake. Every shield is encrypted
+# to both, combined in the manifest. Their private keys lie where nothing
+# can use them, and passing either entry to rage as an identity fails, so
+# edit and rekey succeeding shows that decryption never needs them.
+rage-keygen -o "$TMPDIR/backup key.txt" 2>/dev/null
+backup_pubkey=$(rage-keygen -y "$TMPDIR/backup key.txt")
+rage-keygen -o "$TMPDIR/team key.txt" 2>/dev/null
+{
+  echo '# The team'
+  rage-keygen -y "$TMPDIR/team key.txt"
+} > team-recipients.txt
+sed -i "/nixpkgs.hostPlatform =/i\\                  age.shields.extraEncryptionPubkeys = if name == \"alpha\" then [ \"$backup_pubkey\" ] else [ ./team-recipients.txt ];" flake.nix
+evalExample shields | jq -e --arg pubkey "$backup_pubkey" '
+    .extraEncryptionPubkeys == [{pubkey: $pubkey}, {recipientsFile: "team-recipients.txt"}]
+    and (.masterIdentities | length == 2)' > /dev/null \
+  || fail "the manifest does not combine the extra encryption pubkeys"
+EDITOR="bash '$TMPDIR/scripted editor' locked" nixos-shields edit alpha:shared
+for key in "$TMPDIR/backup key.txt" "$TMPDIR/team key.txt"; do
+  [[ $(rage --decrypt --identity "$key" shields/shared.nix.age) == '{ domain = "locked.example.test"; }' ]] \
+    || fail "edit did not encrypt to the extra encryption pubkey of $key"
+done
+nixos-shields rekey
+for file in shields/*.nix.age; do
+  for key in "$TMPDIR/backup key.txt" "$TMPDIR/team key.txt" "$outside_identity"; do
+    rage --decrypt --identity "$key" "$file" > /dev/null \
+      || fail "rekey omitted $key for $file"
+  done
+done
+extra_cache=$(mktemp -d "$TMPDIR/extra-cache.XXXXXX")
+[[ $(NIXOS_SHIELDS_CACHE_DIR=$extra_cache nix eval --json --no-eval-cache \
+  --extra-experimental-features 'nix-command flakes' \
+  path:.#nixosConfigurations.beta.config.age.shields.values.shared) == '{"domain":"locked.example.test"}' ]] \
+  || fail "evaluation did not decrypt beside the extra encryption pubkeys"
+
 # The suffix check inspects the base name, so no evaluation above copied
 # a shield file into the store on its own; the consumer's source tree is
 # the only place one may appear. The outside identity appears nowhere.
