@@ -43,10 +43,10 @@ EDITOR=vim nixos-shields edit beta:shared
 EDITOR='code --wait' nixos-shields edit alpha:facts
 ```
 
-`edit` decrypts the shield into a private temporary directory outside the checkout, runs `$EDITOR` as a Bash command with the plaintext file appended, and removes the directory on exit. Set `EDITOR` to a command that waits until editing finishes. The temporary directory follows `TMPDIR`; the tool refuses one inside the checkout.
+`edit` decrypts the shield with every master identity file, in manifest order, into a private temporary directory outside the checkout, runs `$EDITOR` as a Bash command with the plaintext file appended, and removes the directory on exit. Set `EDITOR` to a command that waits until editing finishes. The temporary directory follows `TMPDIR`; the tool refuses one inside the checkout.
 
 - An unchanged edit leaves the shield file byte-identical.
-- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds.
+- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds. It encrypts to an identity's public key when the manifest pairs one, and presents the identity file otherwise.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
 
@@ -57,7 +57,7 @@ nixos-shields rekey
 nixos-shields rekey --identity /path/to/previous-identity.txt
 ```
 
-`rekey` decrypts every declared shield with `--identity` and encrypts it to every current master identity. `--identity` is a file relative to the current directory, or an absolute path, and defaults to the first master identity in the manifest. Every declared shield file must exist.
+`rekey` decrypts every declared shield with `--identity` and encrypts it to every current master identity, as `edit` does: to its public key when the manifest pairs one, and to the identity file otherwise. `--identity` is a file relative to the current directory, or an absolute path, and defaults to the first master identity in the manifest. Every declared shield file must exist.
 
 To rotate master identities:
 

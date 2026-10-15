@@ -6,10 +6,13 @@
 
 - `packages.default`, the `nixos-shields` command-line tool.
 - `flakeModules.default`, the flake-parts module.
+- `age.shields.masterIdentities` entries can pair an identity with its public key as `{ identity; pubkey; }`, the form of agenix-rekey's `age.rekey.masterIdentities`, so assigning that option's value works. `nixos-shields edit` and `rekey` encrypt to a paired public key instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt. `lib.importShield` accepts the same entries.
 
 ### Changed
 
 - Every shield belongs to a configuration, and every configuration declares its own master identities, as with agenix-rekey. The manifest's `masterIdentities`, from `lib.mkManifest` and `flakeModules.default`, combines every configuration's `age.shields.masterIdentities`, each identity once, and `nixos-shields edit` and `rekey` encrypt every shield to all of them. Share master identities through a NixOS module imported by each configuration, share data by declaring one shield file in several configurations, and read a configuration's values from outside it through `nixosConfigurations.<name>.config.age.shields.values`.
+- The option `age.shields.masterIdentities` reads back each entry as `{ identity; pubkey; }`, with `pubkey = null` for an entry given as a path.
+- Each entry of the manifest's `masterIdentities` is an object with `identity`, the location, and `pubkey`, a public key or `null`, instead of a location string. Two configurations pairing one identity with different public keys fail evaluation.
 - `nixos-shields list` headings name each configuration as `Configuration <name>:`.
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are flake checks, run by `nix flake check` and CI.

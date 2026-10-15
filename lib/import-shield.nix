@@ -5,8 +5,10 @@
   builtin before decrypting. Reading needs the wrapped Nix from mkNix.
 
   Inputs:
-    identities: the master identity files, a list of paths; any one of
-      them can decrypt the shield.
+    identities: the master identities, any one of which can decrypt the
+      shield, in the forms age.shields.masterIdentities accepts: a path,
+      an absolute path string, or { identity, pubkey }. Only the
+      identity files are used; a public key matters only to encryption.
     file: the shield file, a path whose name ends in `.nix.age`.
 
   Returns the value of the decrypted Nix expression.
@@ -16,6 +18,22 @@
 */
 identities: file:
 let
+  coerceMasterIdentity = import ./coerce-master-identity.nix;
+
+  # The builtin takes paths, and agenix-rekey gives absolute strings. A
+  # path made from one names the same file without copying it.
+  toIdentityPath =
+    entry:
+    let
+      inherit (coerceMasterIdentity entry) identity;
+    in
+    if builtins.isPath identity then
+      identity
+    else if builtins.substring 0 1 identity == "/" then
+      /. + builtins.unsafeDiscardStringContext identity
+    else
+      throw "nixos-shields: master identity ${identity} must be a path or an absolute path string";
+
   extraBuiltins = builtins.extraBuiltins or null;
   # A loaded plugin with no extra-builtins file evaluates to null.
   hasBuiltin = builtins.isAttrs extraBuiltins && extraBuiltins ? importShield;
@@ -33,4 +51,4 @@ else if identities == [ ] then
 else if !hasBuiltin then
   throw noBuiltin
 else
-  extraBuiltins.importShield identities file
+  extraBuiltins.importShield (map toIdentityPath identities) file

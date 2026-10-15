@@ -156,12 +156,22 @@ if [[ $command_name == edit ]]; then
   [[ -n ${EDITOR:-} ]] || die "set EDITOR to the editor command to run"
 fi
 
+# Decryption presents every identity file. Encryption targets an
+# identity's public key when the manifest pairs one, so a passphrase or
+# a hardware key is not needed, and presents the identity file otherwise.
 identity_args=()
-while IFS= read -r -d '' identity; do
-  identity=$(resolve_file "$identity")
+recipient_args=()
+while IFS= read -r entry; do
+  identity=$(resolve_file "$(jq -r .identity <<< "$entry")")
   [[ -f $identity ]] || die "master identity does not exist: $identity"
   identity_args+=(--identity "$identity")
-done < <(jq -j '.masterIdentities[] | ., "\u0000"' <<< "$manifest")
+  pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
+  if [[ -n $pubkey ]]; then
+    recipient_args+=(--recipient "$pubkey")
+  else
+    recipient_args+=(--identity "$identity")
+  fi
+done < <(jq -c '.masterIdentities[]' <<< "$manifest")
 [[ ${#identity_args[@]} -gt 0 ]] || die "no master identity declared"
 
 if [[ $command_name == rekey ]]; then
@@ -203,7 +213,7 @@ encrypt_file() {
   local destination=$1
   mkdir -p -- "$(dirname "$destination")"
   ciphertext=$(mktemp "$(dirname "$destination")/.nixos-shields.XXXXXX")
-  rage --encrypt "${identity_args[@]}" --output "$ciphertext" "$plaintext"
+  rage --encrypt "${recipient_args[@]}" --output "$ciphertext" "$plaintext"
   mv -f -- "$ciphertext" "$destination"
   ciphertext=
 }

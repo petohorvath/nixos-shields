@@ -24,7 +24,7 @@ The table lists the consumer-facing outputs. The `checks`, `devShells`, and `for
 
 ### `lib.importShield`
 
-`importShield identities file` decrypts `file` with any of the master identity files in the list `identities` and returns the value of the Nix expression it holds. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
+`importShield identities file` decrypts `file` with any of the master identities in the list `identities` and returns the value of the Nix expression it holds. `identities` takes the [entry forms](#master-identity-entries) of `age.shields.masterIdentities`; only the identity files are used, since a public key cannot decrypt. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
 
 ```nix
 nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/beta.nix.age
@@ -69,12 +69,35 @@ shields = nixos-shields.lib.mkManifest {
 
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `age.shields.masterIdentities` | list of paths | `[ ]` | Age identity files, any one of which can decrypt every shield of the configuration. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to. |
+| `age.shields.masterIdentities` | list of [master identity entries](#master-identity-entries) | `[ ]` | Age identities, any one of which can decrypt every shield of the configuration, tried in order. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to. |
 | `age.shields.dir` | path | none | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it. |
 | `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. Several configurations can declare the same file, which then has an address in each. |
 | `age.shields.values` | attribute set, read-only | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it. |
 
-Configurations share `dir` and `masterIdentities` through a module of the consumer's own, imported by each of them. A flake that also uses agenix-rekey can assign `age.shields.masterIdentities = config.age.rekey.masterIdentities` there. Outside a configuration, its values are readable as `nixosConfigurations.<name>.config.age.shields.values`, for example to give a deploy-rs node its hostname.
+Configurations share `dir` and `masterIdentities` through a module of the consumer's own, imported by each of them. A flake that also uses agenix-rekey can assign `age.shields.masterIdentities = config.age.rekey.masterIdentities` there, since both options take the same entries. Outside a configuration, its values are readable as `nixosConfigurations.<name>.config.age.shields.values`, for example to give a deploy-rs node its hostname.
+
+### Master identity entries
+
+An entry of `age.shields.masterIdentities` uses the names of agenix-rekey's `age.rekey.masterIdentities`:
+
+| Form | Meaning |
+| --- | --- |
+| A path, such as `./master-identities/yubikey-1.txt` | The identity file alone |
+| `{ identity; pubkey; }` | The identity file, a path or an absolute path string, paired with its public key, a string; `pubkey` defaults to `null` |
+
+The option reads back every entry as an attribute set, a path becoming `{ identity = <path>; pubkey = null; }`. Decryption uses only `identity`. When `pubkey` is set, `nixos-shields edit` and `rekey` encrypt to it instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt:
+
+```nix
+age.shields.masterIdentities = [
+  ./master-identities/yubikey-1.txt
+  {
+    identity = ./master-identities/passphrase.age;
+    pubkey = "age1...";
+  }
+];
+```
+
+A string that is not an absolute path fails evaluation.
 
 ## flake-parts module
 
@@ -88,7 +111,7 @@ Configurations share `dir` and `masterIdentities` through a module of the consum
 
 The manifest lists the master identities and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location is a string relative to the consumer's flake root; a location outside that root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
 
-`masterIdentities` combines every configuration's `age.shields.masterIdentities`, each identity once, in configuration name order. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
+`masterIdentities` combines every configuration's `age.shields.masterIdentities`, each identity once, in configuration name order. Each entry is an object with the identity file's location as `identity` and its public key as `pubkey`, or `null` when no configuration pairs it with one. Two configurations that pair one identity with different public keys fail evaluation with a message naming the identity. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
 
 For the [example consumer](../examples/consumer), `nix eval --json .#shields` returns:
 
@@ -102,7 +125,9 @@ For the [example consumer](../examples/consumer), `nix eval --json .#shields` re
       "files": { "facts": "shields/beta.nix.age", "shared": "shields/shared.nix.age" }
     }
   },
-  "masterIdentities": [ "master-identities/throwaway.txt" ]
+  "masterIdentities": [
+    { "identity": "master-identities/throwaway.txt", "pubkey": null }
+  ]
 }
 ```
 
