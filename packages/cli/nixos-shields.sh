@@ -92,27 +92,69 @@ resolve_file() {
   echo "$file"
 }
 
+# A key file, an identity or a recipients file, outside the checkout, such
+# as one under the home directory, is absolute in the manifest; one inside
+# it is relative.
+resolve_key_file() {
+  if [[ $1 == /* ]]; then
+    realpath -m -- "$1"
+  else
+    resolve_file "$1"
+  fi
+}
+
 manifest=$(
   cd "$flake_dir" || exit
   nix eval --json --extra-experimental-features 'nix-command flakes' \
     --no-write-lock-file 'path:.#shields'
 )
 
+# An age secret key line, or an OpenSSH private key whose cipher is none:
+# its binary form starts with "openssh-key-v1", a NUL, and the cipher name
+# as a length-prefixed string.
+unencrypted_openssh_header=$(printf 'openssh-key-v1\0\0\0\0\4none' | od -An -tx1 | tr -d ' \n')
+holds_plaintext_key() {
+  local line openssh=false body=
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    case $line in
+      AGE-SECRET-KEY-*) return 0 ;;
+      '-----BEGIN OPENSSH PRIVATE KEY-----') openssh=true ;;
+      '-----END OPENSSH PRIVATE KEY-----') break ;;
+      *) [[ $openssh == false ]] || body+=$line ;;
+    esac
+  done < "$1"
+  [[ -n $body ]] || return 1
+  [[ $(base64 -d <<< "$body" 2> /dev/null | head -c 23 | od -An -tx1 | tr -d ' \n') \
+    == "$unencrypted_openssh_header" ]]
+}
+
+# A master identity inside the flake root is committed with it and copied
+# into the Nix store, so a plain private key there earns a warning. One
+# outside the root, or absent, is not inspected.
+while IFS= read -r -d '' identity; do
+  file=$(realpath -m -- "$flake_dir/$identity")
+  [[ -f $file && -r $file ]] || continue
+  if holds_plaintext_key "$file"; then
+    echo "nixos-shields: warning: master identity $identity holds an unencrypted private key" \
+      "inside the flake, which is copied into the Nix store; use a YubiKey or FIDO2 identity" \
+      "stub, a passphrase-protected identity, or a path outside the flake" >&2
+  fi
+done < <(jq -j '.masterIdentities[].identity | select(startswith("/") | not) | ., "\u0000"' <<< "$manifest")
+
 if [[ -n $configuration ]]; then
   jq -e --arg name "$configuration" '.configurations | has($name)' <<< "$manifest" > /dev/null \
     || die "unknown configuration: $configuration"
   manifest=$(jq --arg name "$configuration" '
-    .files = {} | .configurations |= with_entries(select(.key == $name))
+    .configurations |= with_entries(select(.key == $name))
   ' <<< "$manifest")
 fi
 
 shields=$(jq '[
-  (.files | to_entries[] |
-    {address: .key, configuration: null, name: .key, file: .value}),
-  (.configurations | to_entries[] | .key as $configuration |
+  .configurations | to_entries[] | .key as $configuration |
     .value.files | to_entries[] |
     {address: ($configuration + ":" + .key), configuration: $configuration,
-      name: .key, file: .value})
+      name: .key, file: .value}
 ]' <<< "$manifest")
 
 if [[ $command_name == list ]]; then
@@ -124,10 +166,9 @@ if [[ $command_name == list ]]; then
       jq --arg status "$status" '. + {status: $status}' <<< "$shield"
     done < <(jq -c '.[]' <<< "$shields") \
       | jq -s --argjson configurations "$(jq '.configurations | map_values({files: {}})' <<< "$manifest")" '
-        reduce .[] as $shield ({files: {}, configurations: $configurations};
-          {file: $shield.file, status: $shield.status} as $entry |
-          if $shield.configuration == null then .files[$shield.name] = $entry
-          else .configurations[$shield.configuration].files[$shield.name] = $entry end
+        reduce .[] as $shield ({configurations: $configurations};
+          .configurations[$shield.configuration].files[$shield.name] =
+            {file: $shield.file, status: $shield.status}
         ) as $groups |
         $groups + {totals: {total: length,
           exists: (map(select(.status == "exists")) | length),
@@ -139,12 +180,8 @@ if [[ $command_name == list ]]; then
     echo "$listing"
   else
     jq -r '
-      (if (.files | length) > 0 then
-        "Flake-scoped shields:",
-        (.files | to_entries[] | "  \(.key) [\(.value.status)] \(.value.file)")
-      else empty end),
       (.configurations | to_entries[] |
-        "Configuration-scoped shields (\(.key)):",
+        "Configuration \(.key):",
         (.key as $configuration | .value.files | to_entries[] |
           "  \($configuration):\(.key) [\(.value.status)] \(.value.file)")),
       "Total: \(.totals.total); exists: \(.totals.exists); missing: \(.totals.missing)"
@@ -163,18 +200,86 @@ if [[ $command_name == edit ]]; then
   [[ -n ${EDITOR:-} ]] || die "set EDITOR to the editor command to run"
 fi
 
+# Prints the public key of a YubiKey or FIDO2 identity stub, following
+# agenix-rekey's rules: the file holds exactly one line starting with
+# AGE-, the plugin's identity line, and exactly one key in the plugin's
+# comments. Fails for any other file, so encryption presents it and never
+# guesses. The C locale and --text read a binary identity file as lines,
+# without a "binary file matches" notice.
+stub_pubkey() {
+  local file=$1 comment key keys
+  [[ $(LC_ALL=C grep --text --count '^AGE-' -- "$file") == 1 ]] || return 1
+  if LC_ALL=C grep --text --quiet '^AGE-PLUGIN-YUBIKEY-' -- "$file"; then
+    comment='Recipient: age1yubikey1'
+    key='age1yubikey1[0-9a-z]+'
+  elif LC_ALL=C grep --text --quiet '^AGE-PLUGIN-FIDO2-HMAC-' -- "$file"; then
+    comment='public key: age1'
+    key='age1[0-9a-z]+'
+  else
+    return 1
+  fi
+  # Every key in the comments, repeats included, as agenix-rekey counts them.
+  keys=$(LC_ALL=C grep --text --fixed-strings -- "$comment" "$file" \
+    | LC_ALL=C grep --text --only-matching --extended-regexp -- "$key") || return 1
+  [[ $keys != *$'\n'* ]] || return 1
+  echo "$keys"
+}
+
+# Encryption targets an identity's public key when the manifest pairs
+# one, or else when its file is a YubiKey or FIDO2 stub, so a passphrase
+# or a hardware key is not needed, and presents the identity file
+# otherwise. Decryption presents every identity file on disk; one paired
+# with a public key, such as a teammate's, may be absent.
 identity_args=()
-while IFS= read -r -d '' identity; do
-  identity=$(resolve_file "$identity")
-  [[ -f $identity ]] || die "master identity does not exist: $identity"
-  identity_args+=(--identity "$identity")
-done < <(jq -j '.masterIdentities[] | ., "\u0000"' <<< "$manifest")
-[[ ${#identity_args[@]} -gt 0 ]] || die "no master identity declared"
+recipient_args=()
+while IFS= read -r entry; do
+  identity=$(resolve_key_file "$(jq -r .identity <<< "$entry")") || exit
+  pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
+  if [[ -z $pubkey ]]; then
+    [[ -f $identity ]] || die "master identity does not exist: $identity"
+    pubkey=$(stub_pubkey "$identity") || pubkey=
+  fi
+  if [[ -n $pubkey ]]; then
+    recipient_args+=(--recipient "$pubkey")
+  else
+    recipient_args+=(--identity "$identity")
+  fi
+  [[ ! -f $identity ]] || identity_args+=(--identity "$identity")
+done < <(jq -c '.masterIdentities[]' <<< "$manifest")
+[[ ${#recipient_args[@]} -gt 0 ]] || die "no master identity declared"
+
+# Extra encryption pubkeys only receive shields; they never decrypt.
+while IFS= read -r entry; do
+  pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
+  if [[ -n $pubkey ]]; then
+    recipient_args+=(--recipient "$pubkey")
+  else
+    recipients_file=$(resolve_key_file "$(jq -r .recipientsFile <<< "$entry")") || exit
+    [[ -f $recipients_file ]] || die "recipients file does not exist: $recipients_file"
+    recipient_args+=(--recipients-file "$recipients_file")
+  fi
+done < <(jq -c '.extraEncryptionPubkeys[]' <<< "$manifest")
+
+# The primary identity, relative to the caller, is tried first or alone.
+primary_identity=${NIXOS_SHIELDS_PRIMARY_IDENTITY:-}
+decryption_args=()
+if [[ -n $primary_identity ]]; then
+  [[ -f $primary_identity ]] || die "primary identity does not exist: $primary_identity"
+  decryption_args+=(--identity "$primary_identity")
+fi
+if [[ ${NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY:-} == true ]]; then
+  [[ -n $primary_identity ]] \
+    || die "NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY"
+else
+  decryption_args+=("${identity_args[@]}")
+fi
 
 if [[ $command_name == rekey ]]; then
-  # An explicit identity is relative to the caller, not the flake directory.
-  rekey_identity=${rekey_identity:-${identity_args[1]}}
-  [[ -f $rekey_identity ]] || die "decryption identity does not exist: $rekey_identity"
+  if [[ -n $rekey_identity ]]; then
+    # An explicit identity is relative to the caller, not the flake directory.
+    [[ -f $rekey_identity ]] || die "decryption identity does not exist: $rekey_identity"
+    decryption_args=(--identity "$rekey_identity")
+  fi
   files=()
   declare -A seen_files=()
   while IFS= read -r -d '' relative; do
@@ -204,20 +309,25 @@ case $(realpath -- "$workdir") in
 esac
 plaintext=$workdir/shield.nix
 
+decrypt_file() {
+  [[ ${#decryption_args[@]} -gt 0 ]] || die "no master identity file exists to decrypt $1"
+  rage --decrypt "${decryption_args[@]}" --output "$plaintext" "$1"
+}
+
 # Encrypt beside the destination, then atomically replace it. A failed
 # encryption cannot truncate the original, and the EXIT trap removes partials.
 encrypt_file() {
   local destination=$1
   mkdir -p -- "$(dirname "$destination")"
   ciphertext=$(mktemp "$(dirname "$destination")/.nixos-shields.XXXXXX")
-  rage --encrypt "${identity_args[@]}" --output "$ciphertext" "$plaintext"
+  rage --encrypt "${recipient_args[@]}" --output "$ciphertext" "$plaintext"
   mv -f -- "$ciphertext" "$destination"
   ciphertext=
 }
 
 if [[ $command_name == rekey ]]; then
   for file in "${files[@]}"; do
-    rage --decrypt --identity "$rekey_identity" --output "$plaintext" "$file"
+    decrypt_file "$file"
     encrypt_file "$file"
     echo "Rekeyed: ${file#"$flake_dir/"}"
   done
@@ -227,7 +337,7 @@ fi
 existing=false
 if [[ -f $file ]]; then
   existing=true
-  rage --decrypt "${identity_args[@]}" --output "$plaintext" "$file"
+  decrypt_file "$file"
 else
   echo '{}' > "$plaintext"
 fi

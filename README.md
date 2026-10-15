@@ -4,16 +4,11 @@ nixos-shields is a Nix flake that stores Nix expressions age-encrypted in git an
 
 ## Overview
 
-A **shield** is one such encrypted expression, stored in a shield file whose name ends in `.nix.age`. Each shield is encrypted to every master identity of the repository, so any one of them can open it. A master identity is an age identity file: a YubiKey plugin identity stub, an SSH key, or a plain age key.
+A **shield** is one such encrypted expression, stored in a shield file whose name ends in `.nix.age`. Every shield belongs to a NixOS configuration and is readable through that configuration's `age.shields.values` option. A master identity is an age identity file: a YubiKey plugin identity stub, an SSH key, or a plain age key. Each configuration declares its own master identities, as each agenix-rekey host does, and every shield is encrypted to those of all configurations combined, so any one of them can open any shield.
 
 A shield is not a secret. Its decrypted values land in the Nix store of every machine that evaluates or deploys the configuration, and in a plaintext decrypt cache on disk. Passwords, tokens, private keys, and anything else that must stay confidential after deployment belong in a runtime secret manager such as agenix or sops-nix.
 
-Shields have one of two scopes:
-
-- A **flake-scoped shield** belongs to the flake as a whole and is readable before any configuration evaluates.
-- A **configuration-scoped shield** belongs to one NixOS configuration and is readable through that configuration's `age.shields.values` option.
-
-A plugin builtin decrypts shields during evaluation, so evaluation needs the kit's wrapped Nix, which loads that builtin. [ADR 0001](docs/adr/0001-eval-time-decryption-via-exec-builtin.md) records why decryption happens at evaluation time, and [GLOSSARY.md](GLOSSARY.md) defines the project's terms.
+A plugin builtin decrypts shields during evaluation, so evaluation needs the kit's wrapped Nix, which loads that builtin. [ADR 0001](docs/adr/0001-eval-time-decryption-via-exec-builtin.md) records why decryption happens at evaluation time, [ADR 0002](docs/adr/0002-master-identities-follow-agenix-rekey.md) why master identities are declared per configuration, and [GLOSSARY.md](GLOSSARY.md) defines the project's terms.
 
 ## Requirements
 
@@ -37,37 +32,37 @@ The flake's default package is the `nixos-shields` command-line tool, and its `n
 nix shell github:petohorvath/nixos-shields github:petohorvath/nixos-shields#nix
 ```
 
-Before declaring shields, commit at least one master identity file under the flake root. Every location the tool reads, master identities included, must lie inside the flake root.
+Before declaring shields, create at least one master identity. A YubiKey or FIDO2 identity stub, or a passphrase-protected identity, can be committed under the flake root. Keep a plain age key or an SSH key outside the flake root, for example under the home directory, and declare it as an absolute path string, so it is never committed or copied into the Nix store. Shield files must lie inside the flake root.
 
 ## Usage
 
-The [example consumer](examples/consumer) holds a flake-scoped shield, a configuration `alpha` with its own shield, and a configuration `beta` whose shield file is deliberately missing. Its master identity is a committed throwaway identity that protects nothing. From a checkout of this repository, the wrapped Nix reads `alpha`'s decrypted shield:
+The [example consumer](examples/consumer) holds two configurations that share one shield file, `alpha` with a shield of its own, and `beta` whose own shield file is deliberately missing. Its master identity is a committed throwaway identity that protects nothing. From a checkout of this repository, the wrapped Nix reads `alpha`'s decrypted shield:
 
 ```console
 $ nix run .#nix -- eval --json --no-write-lock-file \
     --override-input nixos-shields . \
     ./examples/consumer#nixosConfigurations.alpha.config.age.shields.values
-{"facts":{"domain":"alpha.example.test","macAddress":"02:00:00:00:00:01"}}
+{"facts":{"domain":"alpha.example.test","macAddress":"02:00:00:00:00:01"},"shared":{"domain":"example.test"}}
 ```
 
 The command-line tool lists the shields the example declares without decrypting them:
 
 ```console
 $ nix run . -- --flake examples/consumer list
-Flake-scoped shields:
-  shared [exists] shields/shared.nix.age
-Configuration-scoped shields (alpha):
+Configuration alpha:
   alpha:facts [exists] shields/alpha.nix.age
-Configuration-scoped shields (beta):
+  alpha:shared [exists] shields/shared.nix.age
+Configuration beta:
   beta:facts [missing] shields/beta.nix.age
-Total: 3; exists: 2; missing: 1
+  beta:shared [exists] shields/shared.nix.age
+Total: 4; exists: 3; missing: 1
 ```
 
 The example's `nixos-shields` input is not locked, so the tool evaluates the example's manifest against the published kit and needs network access. The [example README](examples/consumer/README.md) describes its layout and the other attributes to evaluate.
 
 ## Declare shields in a flake
 
-`nixosModules.default` adds the `age.shields` options to a configuration. `lib.mkManifest` publishes the `shields` flake output, the manifest from which the command-line tool learns each shield's address and file. This `flake.nix` declares one configuration-scoped shield and reads its `domain` into an ordinary option:
+`nixosModules.default` adds the `age.shields` options to a configuration. `lib.mkManifest` publishes the `shields` flake output, the manifest from which the command-line tool learns each shield's address and file. This `flake.nix` declares one shield and reads its `domain` into an ordinary option:
 
 ```nix
 {
@@ -86,12 +81,9 @@ The example's `nixos-shields` input is not locked, so the tool evaluates the exa
       nixos-shields,
       ...
     }:
-    let
-      masterIdentities = [ ./master-identities/yubikey-1.txt ];
-    in
     {
       shields = nixos-shields.lib.mkManifest {
-        inherit self masterIdentities;
+        inherit self;
         configurations = self.nixosConfigurations;
       };
 
@@ -102,7 +94,7 @@ The example's `nixos-shields` input is not locked, so the tool evaluates the exa
             { config, ... }:
             {
               age.shields = {
-                inherit masterIdentities;
+                masterIdentities = [ ./master-identities/yubikey-1.txt ];
                 dir = ./shields;
                 files.facts = config.age.shields.dir + "/alpha.nix.age";
               };
@@ -121,7 +113,7 @@ The shield file need not exist yet: `nixos-shields edit alpha:facts` creates it.
 
 ### With flake-parts
 
-`flakeModules.default` declares flake-scoped shields and passes the shield directory and master identities to each configuration through the pre-configured `shields.nixosModule`. It also publishes the manifest, so the flake needs no `lib.mkManifest` call:
+`flakeModules.default` publishes the manifest from the flake's configurations, so the flake needs no `lib.mkManifest` call. A module of the consumer's own shares the shield directory and master identities between configurations:
 
 ```nix
 {
@@ -141,21 +133,22 @@ The shield file need not exist yet: `nixos-shields edit alpha:facts` creates it.
   outputs =
     inputs@{ flake-parts, nixpkgs, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } (
-      { config, ... }:
+      let
+        commonModule = {
+          imports = [ inputs.nixos-shields.nixosModules.default ];
+          age.shields = {
+            dir = ./shields;
+            masterIdentities = [ ./master-identities/yubikey-1.txt ];
+          };
+        };
+      in
       {
         imports = [ inputs.nixos-shields.flakeModules.default ];
         systems = [ "x86_64-linux" ];
 
-        shields = {
-          dir = ./shields;
-          masterIdentities = [ ./master-identities/yubikey-1.txt ];
-          files.shared = ./shields/shared.nix.age;
-        };
-
-        flake.sharedShield = config.shields.values.shared;
         flake.nixosConfigurations.alpha = nixpkgs.lib.nixosSystem {
           modules = [
-            config.shields.nixosModule
+            commonModule
             (
               { config, ... }:
               {
@@ -172,13 +165,69 @@ The shield file need not exist yet: `nixos-shields edit alpha:facts` creates it.
 }
 ```
 
-The flake-scoped value `config.shields.values.shared` is readable in the outer flake-parts module, before any configuration evaluates. Inside a NixOS module, `config` refers to the configuration, so capture the shared value in the outer module or pass it through `specialArgs`.
+A flake that also uses agenix-rekey can assign `age.shields.masterIdentities = config.age.rekey.masterIdentities` in the common module.
+
+A master identity can be paired with its public key, as in agenix-rekey. `nixos-shields edit` and `rekey` then encrypt to the key instead of presenting the identity file, so a passphrase-protected identity or a teammate's YubiKey needs no prompt:
+
+```nix
+age.shields.masterIdentities = [
+  {
+    identity = ./master-identities/passphrase.age;
+    pubkey = "age1...";
+  }
+];
+```
+
+A YubiKey or FIDO2 identity stub needs no `pubkey`: when encrypting, `nixos-shields` [reads it](docs/cli.md#public-keys-from-identity-stubs) from the stub's `Recipient:` or `public key:` comment, so encrypting never touches the hardware.
+
+A master identity outside the flake root is an absolute path string. Plain keys belong there, since a path inside the flake root is committed and copied into the Nix store with the flake:
+
+```nix
+age.shields.masterIdentities = [
+  ./master-identities/yubikey-1.txt
+  "/home/alice/.config/age/shields.txt"
+];
+```
+
+`age.shields.extraEncryptionPubkeys` lists public keys that every shield is also encrypted to and that are never used to decrypt, such as an offline backup key. An entry is a public key string, or a recipients file given as a path or an absolute path string:
+
+```nix
+age.shields.extraEncryptionPubkeys = [
+  "age1..."
+  ./recipients/team.txt
+];
+```
 
 [docs/reference.md](docs/reference.md) lists every option of both modules, the library functions, and the manifest format.
 
+### Share a shield between configurations
+
+Declare the same shield file in each configuration that reads it. Every shield is encrypted to the master identities of all configurations, so each one can decrypt it, and it has one address per configuration, such as `alpha:shared` and `beta:shared`:
+
+```nix
+{ config, ... }:
+{
+  age.shields.files.shared = config.age.shields.dir + "/shared.nix.age";
+  networking.search = [ config.age.shields.values.shared.domain ];
+}
+```
+
+### Read values outside a configuration
+
+A configuration's values are readable from elsewhere in the flake through `nixosConfigurations.<name>.config.age.shields.values`. This deploy-rs node takes its hostname from `alpha`'s shield:
+
+```nix
+deploy.nodes.alpha = {
+  hostname = self.nixosConfigurations.alpha.config.age.shields.values.facts.domain;
+  profiles.system.path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.alpha;
+};
+```
+
+Reading the hostname decrypts only `alpha`'s `facts` shield, and needs the wrapped Nix like any other read.
+
 ## Edit shields
 
-Run the tool in the consumer's flake checkout, or pass `--flake <directory>`. A shield's address is its name for a flake-scoped shield, such as `shared`, or `<configuration>:<name>` for a configuration-scoped one, such as `alpha:facts`:
+Run the tool in the consumer's flake checkout, or pass `--flake <directory>`. A shield's address is `<configuration>:<name>`, such as `alpha:facts`:
 
 ```sh
 nixos-shields list
@@ -186,7 +235,7 @@ EDITOR='code --wait' nixos-shields edit alpha:facts
 nixos-shields rekey
 ```
 
-`edit` decrypts the shield to a temporary file outside the checkout, runs `$EDITOR` on it, and encrypts a changed result to every master identity. A declared shield file that does not exist starts from `{}`. After a change to the declared master identities, `rekey` encrypts every shield to the new list. [docs/cli.md](docs/cli.md) covers every command, option, and the identity rotation procedure.
+`edit` decrypts the shield to a temporary file outside the checkout, runs `$EDITOR` on it, and encrypts a changed result to the master identities of every configuration. A declared shield file that does not exist starts from `{}`. After a change to the declared master identities, `rekey` encrypts every shield to the new list. [docs/cli.md](docs/cli.md) covers every command, option, and the identity rotation procedure.
 
 ## Run Nix tools with the shield builtin
 

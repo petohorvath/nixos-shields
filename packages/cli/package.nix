@@ -2,6 +2,8 @@
   writeShellApplication,
   bash,
   coreutils,
+  diffutils,
+  gnugrep,
   jq,
   nix,
   rage,
@@ -11,6 +13,8 @@ writeShellApplication {
   runtimeInputs = [
     bash
     coreutils
+    diffutils
+    gnugrep
     jq
     nix
     rage

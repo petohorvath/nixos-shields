@@ -5,7 +5,7 @@ Evaluation-time encrypted Nix expressions that keep personally identifiable conf
 ## Language
 
 **Shield**:
-A Nix expression stored encrypted in git and decrypted when Nix evaluates it. Its values are ordinary configuration, not credentials: they end up readable in the Nix store.
+A Nix expression stored encrypted in git and decrypted when Nix evaluates it. Every shield belongs to a configuration. Its values are ordinary configuration, not credentials: they end up readable in the Nix store.
 _Avoid_: Secret, evaluation-time secret, encrypted config
 
 **Shield file**:
@@ -17,31 +17,27 @@ A runtime credential (password, token, private key) that must never reach the Ni
 _Avoid_: Using "secret" for anything a shield holds
 
 **Master identity**:
-An age identity file able to decrypt every shield in a repository. A YubiKey plugin identity stub, an SSH key, or a plain age key. Shields are encrypted to all master identities, so any one of them can open any shield.
+An age identity file able to decrypt every shield in a repository: a YubiKey plugin identity stub, an SSH key, or a plain age key. Each configuration declares its own, and every shield is encrypted to those of all configurations combined, so any one of them can open any shield. It lies inside the flake root, committed with the shields, or outside it, such as under the home directory. A plain private key belongs outside, where it is never committed or copied into the Nix store.
 _Avoid_: Key, recipient, pubkey
 
-**Scope**:
-Where a shield is attached. A shield is either flake-scoped or configuration-scoped.
-_Avoid_: Level, kind, global, local
+**Extra encryption pubkey**:
+A public key, or a recipients file of public keys, that every shield is encrypted to but that is never used to decrypt, such as an offline backup key or a team's keys. Unlike a master identity, it has no identity file in the flake, so evaluation and editing never try it; its private key opens shields only outside the kit, such as after losing every master identity.
+_Avoid_: Backup identity, extra recipient, master identity
 
-**Flake-scoped shield**:
-A shield attached to the flake as a whole, readable before any configuration is evaluated.
-_Avoid_: Global shield, global
-
-**Configuration-scoped shield**:
-A shield attached to one configuration (a NixOS system), readable only through that configuration's options.
-_Avoid_: Local shield, local, host shield, node shield
+**Primary identity**:
+The identity file that the person at the keyboard holds, chosen by them rather than declared in the flake, and tried before the master identities when a shield is decrypted, or instead of them. It spares prompts for hardware keys they do not hold. It need not be a master identity, but it opens shields only if one of them, or an extra encryption pubkey, matches its key.
+_Avoid_: Default identity, preferred key, first master identity
 
 **Configuration**:
 An evaluated NixOS system that can own shields. The consumer decides which attribute set holds them.
 _Avoid_: Host, node, machine
 
 **Manifest**:
-The flake's declared inventory of shields: master identities, flake-scoped shield files, and each configuration's shield files, with file locations relative to the flake root.
+The flake's declared inventory of shields: the master identities and extra encryption pubkeys of all configurations combined and each configuration's shield files, with file locations relative to the flake root.
 _Avoid_: Index, registry, catalogue
 
 **Address**:
-The name by which a shield is referred to on the command line: its name for a flake-scoped shield, `<configuration>:<name>` for a configuration-scoped one.
+The name by which a shield is referred to on the command line: `<configuration>:<name>`. A shield file declared by several configurations has one address in each.
 _Avoid_: Path, identifier, id
 
 **Decrypt cache**:

@@ -66,6 +66,32 @@ runCommand "nixos-shields-integration"
     [[ $actual == "$expected" ]] \
       || fail "decrypted value was $actual, expected $expected"
 
+    # The attribute set entry form decrypts with its identity alone, the
+    # identity given as a path or, as agenix-rekey gives it, a string.
+    pubkey=$(rage-keygen -y identity.txt)
+    for identity in "$TMPDIR/identity.txt" "\"$TMPDIR/identity.txt\""; do
+      entries="[ { identity = $identity; pubkey = \"$pubkey\"; } ]"
+      entryShield="$lib.importShield $entries $TMPDIR/fixture.nix.age"
+      actual=$(evalJson nix "$entryShield" | jq -cS .)
+      [[ $actual == "$expected" ]] \
+        || fail "decrypting with $entries returned $actual, expected $expected"
+    done
+
+    # The builtin itself takes an identity as an absolute path string,
+    # and rejects a relative one.
+    builtin="builtins.extraBuiltins.importShield"
+    stringShield="$builtin [ \"$TMPDIR/identity.txt\" ] $TMPDIR/fixture.nix.age"
+    actual=$(evalJson nix "$stringShield" | jq -cS .)
+    [[ $actual == "$expected" ]] \
+      || fail "the builtin returned $actual for a string identity," \
+        "expected $expected"
+    relativeShield="$builtin [ \"identity.txt\" ] $TMPDIR/fixture.nix.age"
+    if evalJson nix "$relativeShield" 2> relative.log; then
+      fail "the builtin accepted a relative identity string"
+    fi
+    grep -q 'absolute path strings' relative.log \
+      || fail "relative identity failure was: $(cat relative.log)"
+
     # A consumer's own extra-builtins file keeps both its additions
     # and importShield when handed to lib.mkNix.
     composed="{
@@ -78,9 +104,12 @@ runCommand "nixos-shields-integration"
     [[ $actual == "$expected" ]] \
       || fail "composed builtins returned $actual, expected $expected"
 
-    # The fixture lives outside the store; reading it must not copy it in.
-    copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age')
-    [[ -z $copies ]] || fail "shield file copied into the store: $copies"
+    # The fixture and the identity live outside the store; reading them
+    # must not copy them in.
+    copies=$(find "$NIX_STORE" -maxdepth 1 \
+      -name '*.nix.age' -o -name '*-identity.txt')
+    [[ -z $copies ]] \
+      || fail "shield file or identity copied into the store: $copies"
 
     touch "$out"
   ''

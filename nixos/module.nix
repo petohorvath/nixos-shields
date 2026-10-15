@@ -13,7 +13,13 @@
     {
       imports = [ nixos-shields.nixosModules.default ];
       age.shields = {
-        masterIdentities = [ ./master-identities/yubikey-1.txt ];
+        masterIdentities = [
+          ./master-identities/yubikey-1.txt
+          {
+            identity = ./master-identities/passphrase.age;
+            pubkey = "age1...";
+          }
+        ];
         dir = ./shields;
         files.facts = config.age.shields.dir + "/alpha.nix.age";
       };
@@ -27,15 +33,49 @@ let
   importShield = import ../lib/import-shield.nix;
 
   cfg = config.age.shields;
+
+  # The shape of agenix-rekey's age.rekey.masterIdentities entries, so a
+  # configuration can assign that option's value here.
+  masterIdentityType = types.submodule {
+    options = {
+      identity = mkOption {
+        type = types.path;
+        description = "The age identity file, a path or an absolute path.";
+      };
+      pubkey = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          The identity's public key. When set, the command-line tool
+          encrypts to it instead of presenting the identity file.
+        '';
+      };
+    };
+  };
 in
 {
   options.age.shields = {
     masterIdentities = mkOption {
-      type = types.listOf types.path;
+      type = types.listOf (
+        types.coercedTo types.path (identity: { inherit identity; }) masterIdentityType
+      );
       default = [ ];
       description = ''
-        Age identity files, any one of which can decrypt every shield of
-        this configuration. Evaluating a shield with none set fails.
+        Age identities, any one of which can decrypt every shield of
+        this configuration, tried in order. An entry is an identity file
+        or an attribute set with `identity` and an optional `pubkey`; a
+        file alone reads back as `{ identity; pubkey = null; }`.
+        Evaluating a shield with none set fails.
+      '';
+    };
+
+    extraEncryptionPubkeys = mkOption {
+      type = types.listOf (types.either types.path types.str);
+      default = [ ];
+      description = ''
+        Public keys every shield is also encrypted to and that never
+        decrypt, such as an offline backup key. A path or an absolute
+        string names a recipients file; any other string is a public key.
       '';
     };
 
