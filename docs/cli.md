@@ -47,7 +47,7 @@ EDITOR='code --wait' nixos-shields edit alpha:facts
 
 - An unchanged edit leaves the shield file byte-identical.
 - An existing shield is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity).
-- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds.
+- A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds. It encrypts to an identity's public key when the manifest pairs one, and presents the identity file otherwise.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
 
@@ -58,7 +58,7 @@ nixos-shields rekey
 nixos-shields rekey --identity /path/to/previous-identity.txt
 ```
 
-`rekey` decrypts every declared shield and encrypts it to every current master identity. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
+`rekey` decrypts every declared shield and encrypts it to every current master identity, as `edit` does: to its public key when the manifest pairs one, and to the identity file otherwise. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
 
 To rotate master identities:
 

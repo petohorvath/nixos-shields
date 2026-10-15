@@ -106,6 +106,7 @@ case $1 in
   shared) echo '{ domain = "edited.example.test"; }' > "$2" ;;
   empty) [[ $(cat "$2") == '{}' ]] ;;
   beta) echo '{ domain = "beta.example.test"; }' > "$2" ;;
+  locked) echo '{ domain = "locked.example.test"; }' > "$2" ;;
   fail) echo '{ broken' > "$2"; exit 42 ;;
 esac
 EDITOR_SCRIPT
@@ -123,9 +124,9 @@ sed -i 's@masterIdentities = \[ ./master-identities/throwaway.txt \];@masterIden
 # mkAfter keeps the common module's identities first in the manifest.
 sed -i '/nixpkgs.hostPlatform =/i\                  age.shields.masterIdentities = nixpkgs.lib.mkIf (name == "alpha") (nixpkgs.lib.mkAfter [ ./master-identities/alpha-only.txt ]);' flake.nix
 evalExample nixosConfigurations.alpha.config.age.shields.masterIdentities \
-  | jq -e 'any(endswith("alpha-only.txt"))' > /dev/null || fail "alpha lacks its own identity"
+  | jq -e 'any(.identity | endswith("alpha-only.txt"))' > /dev/null || fail "alpha lacks its own identity"
 evalExample nixosConfigurations.beta.config.age.shields.masterIdentities \
-  | jq -e 'any(endswith("alpha-only.txt")) | not' > /dev/null || fail "beta declares alpha's identity"
+  | jq -e 'any(.identity | endswith("alpha-only.txt")) | not' > /dev/null || fail "beta declares alpha's identity"
 # Edited through beta, whose identities exclude alpha's; both read it.
 EDITOR="bash '$TMPDIR/scripted editor' shared" nixos-shields edit beta:shared
 if cmp -s shields/shared.nix.age "$TMPDIR/shared-before.age"; then fail "changed edit did not encrypt"; fi
@@ -200,6 +201,44 @@ done
   || fail "rotation changed alpha's values"
 [[ $(evalExample nixosConfigurations.beta.config.age.shields.values.facts) == '{"domain":"beta.example.test"}' ]] \
   || fail "rotation changed beta's values"
+
+# A passphrase-protected identity paired with its public key. Creating it
+# answers the passphrase prompt through a scripted pinentry; nothing
+# answers it afterwards, so presenting the identity file to rage fails.
+cat > "$TMPDIR/pinentry" <<PINENTRY
+#!$BASH
+echo OK
+while IFS= read -r line; do
+  case \$line in
+    GETPIN*) echo 'D example passphrase' ;;
+  esac
+  echo OK
+  [[ \$line != BYE* ]] || exit 0
+done
+PINENTRY
+chmod +x "$TMPDIR/pinentry"
+rage-keygen -o "$TMPDIR/locked key.txt" 2>/dev/null
+locked_pubkey=$(rage-keygen -y "$TMPDIR/locked key.txt")
+PINENTRY_PROGRAM=$TMPDIR/pinentry rage --passphrase \
+  --output master-identities/locked.age "$TMPDIR/locked key.txt" < /dev/null
+expectFailure 'encrypted key' rage --encrypt --identity master-identities/locked.age \
+  --output "$TMPDIR/presented.age" flake.nix < /dev/null
+sed -i "s@\\[ ./master-identities/backup.txt \\]@[ ./master-identities/backup.txt { identity = ./master-identities/locked.age; pubkey = \"$locked_pubkey\"; } ]@" flake.nix
+evalExample shields | jq -e --arg pubkey "$locked_pubkey" '.masterIdentities == [
+    {identity: "master-identities/backup.txt", pubkey: null},
+    {identity: "master-identities/locked.age", pubkey: $pubkey},
+    {identity: "master-identities/alpha-only.txt", pubkey: null}]' > /dev/null \
+  || fail "the manifest lacks the identity paired with its public key"
+EDITOR="bash '$TMPDIR/scripted editor' locked" nixos-shields edit alpha:shared < /dev/null
+[[ $(rage --decrypt --identity "$TMPDIR/locked key.txt" shields/shared.nix.age) == '{ domain = "locked.example.test"; }' ]] \
+  || fail "edit did not encrypt to the public key paired with the locked identity"
+nixos-shields rekey < /dev/null
+for file in shields/*.nix.age; do
+  rage --decrypt --identity "$TMPDIR/locked key.txt" "$file" > /dev/null \
+    || fail "the public key paired with the locked identity cannot open $file"
+done
+[[ $(evalExample nixosConfigurations.beta.config.age.shields.values.shared) == '{"domain":"locked.example.test"}' ]] \
+  || fail "beta cannot read the shared shield beside the locked identity"
 
 # The primary identity need not be declared, and is relative to the caller.
 # With _ONLY, it alone decrypts: the removed identity fails, a copy of the

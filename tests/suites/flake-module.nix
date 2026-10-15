@@ -35,7 +35,12 @@ let
   };
 
   exampleManifest = {
-    masterIdentities = [ "master-identities/throwaway.txt" ];
+    masterIdentities = [
+      {
+        identity = "master-identities/throwaway.txt";
+        pubkey = null;
+      }
+    ];
     configurations = {
       alpha.files = {
         facts = "shields/alpha.nix.age";
@@ -55,7 +60,8 @@ in
   };
 
   # Each configuration's list in name order; an identity repeated
-  # anywhere, in any form, appears once.
+  # anywhere, in any form, appears once, with the public key any of its
+  # entries pairs it with.
   testManifestCombinesConfigurationIdentities = {
     expr =
       (shieldsLib.mkManifest {
@@ -63,21 +69,65 @@ in
         configurations = {
           beta.config.age.shields.masterIdentities = [
             betaIdentityPath
-            alphaIdentityPath
+            {
+              identity = alphaIdentityPath;
+              pubkey = "age1alpha";
+            }
           ];
           alpha.config.age.shields.masterIdentities = [
             (toString alphaIdentityPath)
-            identityPath
-            alphaIdentityPath
+            { identity = identityPath; }
+            {
+              identity = alphaIdentityPath;
+              pubkey = null;
+            }
           ];
           unshielded.config.networking.hostName = "unshielded";
         };
       }).masterIdentities;
     expected = [
-      "master-identities/alpha.txt"
-      "master-identities/throwaway.txt"
-      "master-identities/beta.txt"
+      {
+        identity = "master-identities/alpha.txt";
+        pubkey = "age1alpha";
+      }
+      {
+        identity = "master-identities/throwaway.txt";
+        pubkey = null;
+      }
+      {
+        identity = "master-identities/beta.txt";
+        pubkey = null;
+      }
     ];
+  };
+
+  testManifestRejectsConflictingPublicKeys = {
+    expr =
+      (shieldsLib.mkManifest {
+        self.outPath = flakeRoot;
+        configurations = {
+          alpha.config.age.shields.masterIdentities = [
+            {
+              identity = alphaIdentityPath;
+              pubkey = "age1first";
+            }
+          ];
+          beta.config.age.shields.masterIdentities = [
+            {
+              identity = toString alphaIdentityPath;
+              pubkey = "age1first";
+            }
+            {
+              identity = alphaIdentityPath;
+              pubkey = "age1second";
+            }
+          ];
+        };
+      }).masterIdentities;
+    expectedError = {
+      type = "ThrownError";
+      msg = "master identity master-identities/alpha\\.txt is paired with different public keys: age1first and age1second";
+    };
   };
 
   testManifestRejectsMasterIdentitiesArgument = {
@@ -167,7 +217,12 @@ in
       };
     };
     expected = {
-      masterIdentities = [ "master-identities/throwaway.txt" ];
+      masterIdentities = [
+        {
+          identity = "master-identities/throwaway.txt";
+          pubkey = null;
+        }
+      ];
       configurations.alpha.files.shared = "shields/shared.nix.age";
     };
   };

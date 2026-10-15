@@ -167,6 +167,17 @@ The shield file need not exist yet: `nixos-shields edit alpha:facts` creates it.
 
 A flake that also uses agenix-rekey can assign `age.shields.masterIdentities = config.age.rekey.masterIdentities` in the common module.
 
+A master identity can be paired with its public key, as in agenix-rekey. `nixos-shields edit` and `rekey` then encrypt to the key instead of presenting the identity file, so a passphrase-protected identity or a teammate's YubiKey needs no prompt:
+
+```nix
+age.shields.masterIdentities = [
+  {
+    identity = ./master-identities/passphrase.age;
+    pubkey = "age1...";
+  }
+];
+```
+
 [docs/reference.md](docs/reference.md) lists every option of both modules, the library functions, and the manifest format.
 
 ### Share a shield between configurations

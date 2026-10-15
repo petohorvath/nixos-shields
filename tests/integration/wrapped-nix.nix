@@ -66,6 +66,17 @@ runCommand "nixos-shields-integration"
     [[ $actual == "$expected" ]] \
       || fail "decrypted value was $actual, expected $expected"
 
+    # The attribute set entry form decrypts with its identity alone, the
+    # identity given as a path or, as agenix-rekey gives it, a string.
+    pubkey=$(rage-keygen -y identity.txt)
+    for identity in "$TMPDIR/identity.txt" "\"$TMPDIR/identity.txt\""; do
+      entries="[ { identity = $identity; pubkey = \"$pubkey\"; } ]"
+      entryShield="$lib.importShield $entries $TMPDIR/fixture.nix.age"
+      actual=$(evalJson nix "$entryShield" | jq -cS .)
+      [[ $actual == "$expected" ]] \
+        || fail "decrypting with $entries returned $actual, expected $expected"
+    done
+
     # A consumer's own extra-builtins file keeps both its additions
     # and importShield when handed to lib.mkNix.
     composed="{
