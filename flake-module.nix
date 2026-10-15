@@ -1,7 +1,5 @@
-/*
-  Publishes the manifest of a flake-parts flake. Configurations import
-  nixosModules.default themselves; this module imports no flake inputs.
-*/
+# Publishes the manifest of a flake-parts flake. Configurations import
+# nixosModules.default themselves; this module imports no flake inputs.
 {
   config,
   lib,
