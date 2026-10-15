@@ -1,5 +1,0 @@
-# A fake key in the format of age-keygen, whose comment resembles a
-# FIDO2 stub's.
-# created: 2026-10-15T09:00:00Z
-# public key: age1v9n6xd9kw38mk5qv4n2rw6fp0yq3xzjhz2s5h3kq7rjlgh0vtcxsqf3x2n
-AGE-SECRET-KEY-1FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE

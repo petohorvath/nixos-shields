@@ -200,19 +200,48 @@ if [[ $command_name == edit ]]; then
   [[ -n ${EDITOR:-} ]] || die "set EDITOR to the editor command to run"
 fi
 
+# Prints the public key of a YubiKey or FIDO2 identity stub, following
+# agenix-rekey's rules: the file holds exactly one line starting with
+# AGE-, the plugin's identity line, and exactly one key in the plugin's
+# comments. Fails for any other file, so encryption presents it and never
+# guesses. The C locale and --text read a binary identity file as lines,
+# without a "binary file matches" notice.
+stub_pubkey() {
+  local file=$1 comment key keys
+  [[ $(LC_ALL=C grep --text --count '^AGE-' -- "$file") == 1 ]] || return 1
+  if LC_ALL=C grep --text --quiet '^AGE-PLUGIN-YUBIKEY-' -- "$file"; then
+    comment='Recipient: age1yubikey1'
+    key='age1yubikey1[0-9a-z]+'
+  elif LC_ALL=C grep --text --quiet '^AGE-PLUGIN-FIDO2-HMAC-' -- "$file"; then
+    comment='public key: age1'
+    key='age1[0-9a-z]+'
+  else
+    return 1
+  fi
+  # Every key in the comments, repeats included, as agenix-rekey counts them.
+  keys=$(LC_ALL=C grep --text --fixed-strings -- "$comment" "$file" \
+    | LC_ALL=C grep --text --only-matching --extended-regexp -- "$key") || return 1
+  [[ $keys != *$'\n'* ]] || return 1
+  echo "$keys"
+}
+
 # Encryption targets an identity's public key when the manifest pairs
-# one, so a passphrase or a hardware key is not needed, and presents the
-# identity file otherwise. Decryption presents every identity file on
-# disk; one paired with a public key, such as a teammate's, may be absent.
+# one, or else when its file is a YubiKey or FIDO2 stub, so a passphrase
+# or a hardware key is not needed, and presents the identity file
+# otherwise. Decryption presents every identity file on disk; one paired
+# with a public key, such as a teammate's, may be absent.
 identity_args=()
 recipient_args=()
 while IFS= read -r entry; do
   identity=$(resolve_key_file "$(jq -r .identity <<< "$entry")") || exit
   pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
+  if [[ -z $pubkey ]]; then
+    [[ -f $identity ]] || die "master identity does not exist: $identity"
+    pubkey=$(stub_pubkey "$identity") || pubkey=
+  fi
   if [[ -n $pubkey ]]; then
     recipient_args+=(--recipient "$pubkey")
   else
-    [[ -f $identity ]] || die "master identity does not exist: $identity"
     recipient_args+=(--identity "$identity")
   fi
   [[ ! -f $identity ]] || identity_args+=(--identity "$identity")

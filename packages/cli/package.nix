@@ -3,6 +3,7 @@
   bash,
   coreutils,
   diffutils,
+  gnugrep,
   jq,
   nix,
   rage,
@@ -13,6 +14,7 @@ writeShellApplication {
     bash
     coreutils
     diffutils
+    gnugrep
     jq
     nix
     rage

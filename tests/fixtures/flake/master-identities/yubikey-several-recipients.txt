@@ -1,4 +1,0 @@
-#       Serial: 12345678, Slot: 1
-#    Recipient: age1yubikey1qwpx8z4xg2cqnjztq8s0hyum7c3g6dc2zc6t6r4ykhxkk0wp7hm6y5zskw2
-#    Recipient: age1yubikey1q0ah5wk3dqf7zn6mxs2gr8tvp4ylc9ju3e5ehk7a0rw2xd8sfq6mzvpl0
-AGE-PLUGIN-YUBIKEY-1QXQPZ9TAZNG7SEQXYXR5XJ

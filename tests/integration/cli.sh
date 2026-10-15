@@ -118,6 +118,8 @@ case $1 in
   empty) [[ $(cat "$2") == '{}' ]] ;;
   beta) echo '{ domain = "beta.example.test"; }' > "$2" ;;
   locked) echo '{ domain = "locked.example.test"; }' > "$2" ;;
+  stubs) echo '{ domain = "stubs.example.test"; }' > "$2" ;;
+  binary) echo '{ domain = "binary.example.test"; }' > "$2" ;;
   fail) echo '{ broken' > "$2"; exit 42 ;;
 esac
 EDITOR_SCRIPT
@@ -344,6 +346,127 @@ nixos-shields list > /dev/null 2> "$TMPDIR/outside-stderr.log"
 if grep -q 'warning: master identity' "$TMPDIR/outside-stderr.log"; then
   fail "warned about an identity outside the flake root: $(cat "$TMPDIR/outside-stderr.log")"
 fi
+
+# Encryption reads the public key of a YubiKey or FIDO2 identity stub that
+# no configuration pairs with one, inside the flake root or outside it; the
+# manifest leaves its pubkey null. No age plugin is on PATH, so presenting
+# a stub to rage fails. A FIDO2 stub whose comment holds an X25519 public
+# key, which only its private key opens, shows that encryption used the
+# comment's key. The outside identity alone decrypts, as the primary
+# identity, so no stub is presented for decryption.
+cp flake.nix "$TMPDIR/flake-before-stubs.nix"
+fido2_identity_line=AGE-PLUGIN-FIDO2-HMAC-1QU2ZZT3MFP2KYMMU3XT28V9AETT7FU07PVVZ2V3LF3VKVUUQ3KDQUMTPZ7
+# Writes a FIDO2 stub to $1 with a public key comment for each further key.
+writeFido2Stub() {
+  local file=$1 key
+  shift
+  {
+    echo '# created: 2026-10-15T09:00:00Z'
+    for key in "$@"; do echo "# public key: $key"; done
+    echo "$fido2_identity_line"
+  } > "$file"
+}
+for name in fido2 comment declared outside; do
+  rage-keygen -o "$TMPDIR/$name key.txt" 2>/dev/null
+done
+pubkeyOf() { rage-keygen -y "$TMPDIR/$1 key.txt"; }
+outside_stub="$TMPDIR/outside identities/fido2.txt"
+writeFido2Stub master-identities/fido2.txt "$(pubkeyOf fido2)"
+writeFido2Stub master-identities/fido2-declared.txt "$(pubkeyOf comment)"
+writeFido2Stub "$outside_stub" "$(pubkeyOf outside)"
+expectFailure "Could not find 'age-plugin-fido2-hmac'" rage --encrypt \
+  --identity master-identities/fido2.txt --output "$TMPDIR/presented.age" flake.nix
+declared_pubkey=$(pubkeyOf declared)
+sed -i "s@masterIdentities = \\[ \"$outside_identity\"@masterIdentities = [ ./master-identities/fido2.txt { identity = ./master-identities/fido2-declared.txt; pubkey = \"$declared_pubkey\"; } \"$outside_stub\" \"$outside_identity\"@" flake.nix
+evalExample shields | jq -e --arg stub "$outside_stub" --arg pubkey "$declared_pubkey" '
+    .masterIdentities[0:3] == [
+      {identity: "master-identities/fido2.txt", pubkey: null},
+      {identity: "master-identities/fido2-declared.txt", pubkey: $pubkey},
+      {identity: $stub, pubkey: null}]' > /dev/null \
+  || fail "the manifest does not leave undeclared stub public keys null"
+# Edits alpha:shared with editor case $1, decrypting with the outside
+# identity alone; further arguments are environment assignments.
+editAsOutsideIdentity() {
+  local editor_case=$1
+  shift
+  env "$@" NIXOS_SHIELDS_PRIMARY_IDENTITY="$outside_identity" NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+    EDITOR="bash '$TMPDIR/scripted editor' $editor_case" nixos-shields edit alpha:shared
+}
+editAsOutsideIdentity stubs
+for name in fido2 declared outside; do
+  [[ $(rage --decrypt --identity "$TMPDIR/$name key.txt" shields/shared.nix.age) == '{ domain = "stubs.example.test"; }' ]] \
+    || fail "edit did not encrypt to the $name stub's public key"
+done
+if rage --decrypt --identity "$TMPDIR/comment key.txt" shields/shared.nix.age > /dev/null 2>&1; then
+  fail "the stub's comment won over its declared public key"
+fi
+
+# A stub with no public key, or with several, is presented as it is, so
+# encrypting to it needs the absent plugin and leaves the shield unchanged.
+cp shields/shared.nix.age "$TMPDIR/shared-before-fallback.age"
+writeFido2Stub master-identities/fido2.txt
+expectFailure "Could not find 'age-plugin-fido2-hmac'" editAsOutsideIdentity binary
+writeFido2Stub master-identities/fido2.txt "$(pubkeyOf fido2)" "$(pubkeyOf comment)"
+expectFailure "Could not find 'age-plugin-fido2-hmac'" editAsOutsideIdentity binary
+cmp shields/shared.nix.age "$TMPDIR/shared-before-fallback.age" \
+  || fail "a failed fallback encryption replaced the shield"
+
+# Encrypting even to a YubiKey stub's public key needs its plugin, so a
+# stand-in plugin records whether rage gave it the stub's recipient or its
+# identity line, and then fails.
+yubikey_identity_line=AGE-PLUGIN-YUBIKEY-1PCDJSD2ZFAWXJA5RJZW64D7Y680WKDV3Z36
+yubikey_recipient=age1yubikey1z53z70zf2e3hqlv2j7jtr0ktmrjl9lcvrynrxszdtfnhfqvwnw5t2d3xvz8
+mkdir "$TMPDIR/plugins"
+cat > "$TMPDIR/plugins/age-plugin-yubikey" <<PLUGIN
+#!$BASH
+while IFS= read -r line; do
+  case \$line in
+    '-> add-'*) echo "\${line#-> }" >> "$TMPDIR/yubikey-plugin.log" ;;
+    '-> done') exit 1 ;;
+  esac
+done
+PLUGIN
+chmod +x "$TMPDIR/plugins/age-plugin-yubikey"
+sed -i 's@\./master-identities/fido2\.txt@./master-identities/yubikey.txt@' flake.nix
+yubikeyPluginRequests() {
+  rm -f "$TMPDIR/yubikey-plugin.log"
+  expectFailure 'age-plugin-yubikey' editAsOutsideIdentity binary PATH="$TMPDIR/plugins:$PATH"
+  cat "$TMPDIR/yubikey-plugin.log"
+}
+cat > master-identities/yubikey.txt <<STUB
+#       Serial: 12345678, Slot: 1
+#    Recipient: $yubikey_recipient
+$yubikey_identity_line
+STUB
+[[ $(yubikeyPluginRequests) == "add-recipient $yubikey_recipient" ]] \
+  || fail "edit did not encrypt to the YubiKey stub's recipient"
+sed -i '/Recipient:/d' master-identities/yubikey.txt
+[[ $(yubikeyPluginRequests) == "add-identity $yubikey_identity_line" ]] \
+  || fail "edit did not present the YubiKey stub without a recipient"
+
+# Nix cannot read a file holding a NUL byte, yet a binary
+# passphrase-protected identity inside the flake root, given without its
+# public key, leaves the manifest intact. Encryption presents it, asking
+# for its passphrase, without noise about the binary file.
+holdsNul() { [[ $(tr -cd '\0' < "$1" | wc -c) -gt 0 ]]; }
+until [[ -f master-identities/binary.age ]] && holdsNul master-identities/binary.age; do
+  rm -f master-identities/binary.age
+  PINENTRY_PROGRAM=$TMPDIR/pinentry rage --passphrase \
+    --output master-identities/binary.age "$TMPDIR/locked key.txt" < /dev/null
+done
+cp "$TMPDIR/flake-before-stubs.nix" flake.nix
+sed -i "s@masterIdentities = \\[ \"$outside_identity\"@masterIdentities = [ ./master-identities/binary.age \"$outside_identity\"@" flake.nix
+nixos-shields list > /dev/null 2> "$TMPDIR/binary-stderr.log" \
+  || fail "list failed beside a binary identity: $(cat "$TMPDIR/binary-stderr.log")"
+evalExample shields | jq -e '.masterIdentities[0] == {identity: "master-identities/binary.age", pubkey: null}' > /dev/null \
+  || fail "the manifest does not leave the binary identity's public key null"
+editAsOutsideIdentity binary PINENTRY_PROGRAM="$TMPDIR/pinentry" < /dev/null 2> "$TMPDIR/binary-stderr.log"
+if grep -q -i -e binary -e 'null byte' "$TMPDIR/binary-stderr.log"; then
+  fail "encryption reported on the binary identity: $(cat "$TMPDIR/binary-stderr.log")"
+fi
+[[ $(rage --decrypt --identity "$TMPDIR/locked key.txt" shields/shared.nix.age) == '{ domain = "binary.example.test"; }' ]] \
+  || fail "edit did not encrypt to the binary identity"
+cp "$TMPDIR/flake-before-stubs.nix" flake.nix
 
 # Inside the flake root, an unencrypted OpenSSH key warns, while a YubiKey
 # stub, the passphrase-protected age identity, and a passphrase-protected
