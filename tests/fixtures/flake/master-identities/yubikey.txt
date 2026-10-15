@@ -1,0 +1,7 @@
+#       Serial: 12345678, Slot: 1
+#         Name: age identity 1a2b3c4d
+#      Created: Thu, 15 Oct 2026 09:00:00 +0000
+#   PIN policy: Once   (A PIN is required once per session, if set)
+# Touch policy: Always (A physical touch is required for every decryption)
+#    Recipient: age1yubikey1qwpx8z4xg2cqnjztq8s0hyum7c3g6dc2zc6t6r4ykhxkk0wp7hm6y5zskw2
+AGE-PLUGIN-YUBIKEY-1QXQPZ9TAZNG7SEQXYXR5XJ

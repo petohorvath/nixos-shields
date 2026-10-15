@@ -98,7 +98,9 @@ age.shields.masterIdentities = [
 ];
 ```
 
-An identity outside the flake root is never committed or copied into the Nix store: evaluation hands its location to the builtin, and the manifest keeps it absolute. Keep plain age keys and SSH keys there, and commit only YubiKey identity stubs and passphrase-protected identities under the flake root. A path inside the flake is copied into the store with the flake source.
+A YubiKey or FIDO2 identity stub given as a path needs no `pubkey`: the manifest [reads its public key](#public-keys-from-identity-stubs) from the stub's comments.
+
+An identity outside the flake root is never committed or copied into the Nix store: evaluation hands its location to the builtin, and the manifest keeps it absolute. Keep plain age keys and SSH keys there, and commit only YubiKey or FIDO2 identity stubs and passphrase-protected identities under the flake root. A path inside the flake is copied into the store with the flake source.
 
 A string that is not an absolute path fails evaluation.
 
@@ -114,7 +116,22 @@ A string that is not an absolute path fails evaluation.
 
 The manifest lists the master identities and each configuration's shield files. It is built without decrypting values or requiring the shield files to exist. Every location inside the consumer's flake root is a string relative to it. A master identity outside the root keeps its normalized absolute location, so the tool finds it from any working directory; a shield file outside the root fails evaluation with a message naming it. A configuration without the shields module appears with empty `files`.
 
-`masterIdentities` combines every configuration's `age.shields.masterIdentities`, each identity once, in configuration name order. Each entry is an object with the identity file's location as `identity` and its public key as `pubkey`, or `null` when no configuration pairs it with one. Two configurations that pair one identity with different public keys fail evaluation with a message naming the identity. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
+`masterIdentities` combines every configuration's `age.shields.masterIdentities`, each identity once, in configuration name order. Each entry is an object with the identity file's location as `identity` and its public key as `pubkey`. The public key is the one a configuration pairs the identity with, or else the one [read from an identity stub](#public-keys-from-identity-stubs), or else `null`. Two configurations that pair one identity with different public keys fail evaluation with a message naming the identity. The command-line tool encrypts every shield to all of them, so an identity declared by any configuration opens every shield, including those of other configurations. A configuration without the shields module contributes no identities.
+
+### Public keys from identity stubs
+
+When no configuration pairs an identity with a public key and some configuration gives the identity as a path inside the flake root, the manifest reads the file and takes the public key from a YubiKey or FIDO2 identity stub, following agenix-rekey's rules:
+
+| Stub | Identity line | Public key |
+| --- | --- | --- |
+| YubiKey, from `age-plugin-yubikey` | `AGE-PLUGIN-YUBIKEY-…` | The `age1yubikey1…` key in a `Recipient: age1yubikey1…` comment |
+| FIDO2, from `age-plugin-fido2-hmac` | `AGE-PLUGIN-FIDO2-HMAC-…` | The `age1…` key in a `public key: age1…` comment |
+
+The file must hold exactly one line starting with `AGE-`, the stub's identity line, and exactly one public key in such comments. Any other file gets a `null` public key, including a stub without the comment, a stub with several keys or identities, a missing file, and a plain age key, whose `public key:` comment does not make it a FIDO2 stub. The tool then presents the identity file, and never guesses which key to encrypt to.
+
+The manifest never reads an identity given as a string, or one outside the flake root, so building it stays pure. Such an identity needs a declared `pubkey` for encryption to skip the identity file.
+
+### Example manifest
 
 For the [example consumer](../examples/consumer), `nix eval --json .#shields` returns:
 
