@@ -24,7 +24,7 @@ The table lists the consumer-facing outputs. The `checks`, `devShells`, and `for
 
 ### `lib.importShield`
 
-`importShield identities file` decrypts `file` with any of the master identities in the list `identities`, subject to the [primary identity](#primary-identity) variables, and returns the value of the Nix expression it holds. `identities` takes the [entry forms](#master-identity-entries) of `age.shields.masterIdentities`; only the identity files are used, since a public key cannot decrypt. The builtin `builtins.extraBuiltins.importShield` takes the identity files as paths or absolute path strings, and the shield file as a path whose base name ends in `.nix.age`; neither is copied into the store. Decryption skips identity files that do not exist, such as a teammate's paired with a public key, and fails when none does. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
+`importShield identities file` decrypts `file` with any of the master identities in the list `identities`, subject to the [primary identity](#primary-identity) variables, and returns the value of the Nix expression it holds. `identities` takes the [entry forms](#master-identity-entries) of `age.shields.masterIdentities`; only the identity files are used, since a public key cannot decrypt. The builtin `builtins.extraBuiltins.importShield` takes the identity files as paths or absolute path strings, and the shield file as a path whose base name ends in `.nix.age`; neither is copied into the store. Decryption skips identity files that do not exist, such as a teammate's paired with a public key, without a message, so a misspelled identity is skipped too; it fails when none exists. Before decrypting, it fails with a message naming the file when the file does not exist or the identity list is empty, and with a message naming `lib.mkNix` when the running Nix lacks the builtin.
 
 ```nix
 nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/beta.nix.age
@@ -150,6 +150,8 @@ When no configuration pairs an identity with a public key and some configuration
 | FIDO2, from `age-plugin-fido2-hmac` | `AGE-PLUGIN-FIDO2-HMAC-…` | The `age1…` key in a `public key: age1…` comment |
 
 The file must hold exactly one line starting with `AGE-`, the stub's identity line, and exactly one public key in such comments. Any other file gets a `null` public key, including a stub without the comment, a stub with several keys or identities, a missing file, and a plain age key, whose `public key:` comment does not make it a FIDO2 stub. The tool then presents the identity file, and never guesses which key to encrypt to.
+
+Nix cannot read a file holding a NUL byte, such as a binary passphrase-protected age identity, so such a file given as a path without a `pubkey` fails building the manifest with a message naming it. Pair it with its `pubkey`, which also spares the passphrase prompt when encrypting, or armor it with `rage --armor`.
 
 The manifest never reads an identity given as a string, or one outside the flake root, so building it stays pure. Such an identity needs a declared `pubkey` for encryption to skip the identity file.
 

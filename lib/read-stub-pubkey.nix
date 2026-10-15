@@ -4,7 +4,9 @@
   `AGE-`, the plugin's identity line, and exactly one key in the
   plugin's comments. Returns null for any other file, including a
   missing one, so encryption falls back to presenting the identity file
-  and never guesses.
+  and never guesses. A file holding a NUL byte, such as a binary age
+  file, fails evaluation naming it: Nix cannot read it into a string,
+  and builtins.tryEval does not catch that error.
 */
 path:
 let
