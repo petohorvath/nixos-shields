@@ -23,6 +23,17 @@ Encryption presents an identity file only when the manifest pairs no public key 
 
 Encryption also targets every [extra encryption pubkey](reference.md#extra-encryption-pubkeys) in the manifest: a public key directly, and a recipients file through rage's `--recipients-file`, which fails when the file does not exist. Decryption never uses them.
 
+## Unencrypted private keys
+
+Every command that reads the manifest, every command but `clean`, warns on stderr about each master identity inside the flake root that holds an unencrypted private key: a line starting with `AGE-SECRET-KEY-`, or an OpenSSH private key whose cipher is `none`. Such a file is copied into the Nix store with the flake source and is easily committed to git. The warning names the file and does not fail the command:
+
+```console
+$ nixos-shields list
+nixos-shields: warning: master identity master-identities/throwaway.txt holds an unencrypted private key inside the flake, which is copied into the Nix store; use a YubiKey or FIDO2 identity stub, a passphrase-protected identity, or a path outside the flake
+```
+
+Replace the identity with a YubiKey or FIDO2 identity stub or a passphrase-protected identity, or move it outside the flake root and declare it as an absolute path string. YubiKey and FIDO2 stubs, passphrase-protected identities, identities outside the flake root, and identity files that do not exist never warn.
+
 ## Addresses
 
 An address is `<configuration>:<name>`, such as `alpha:facts`. A bare name is an unknown address. Names and file locations come from the manifest, so declare a shield in a configuration before editing it. A shield file that several configurations declare has an address in each, such as `alpha:shared` and `beta:shared`, and editing it through any of them changes it for all.

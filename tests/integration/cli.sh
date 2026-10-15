@@ -30,10 +30,21 @@ expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/cache-link" nixos-
 [[ -f $HOME/keep ]] || fail "clean removed unrelated files"
 expectFailure 'local directory' nixos-shields --flake github:someone/flake clean
 
+# The example's throwaway identity is a plain age key inside the flake
+# root, so every command reading the manifest warns about it on stderr and
+# still succeeds.
+expectPlaintextKeyWarning() {
+  local identity=$1 log=$2
+  grep -q "warning: master identity $identity holds an unencrypted private key" "$log" \
+    || fail "no plaintext key warning for $identity: $(cat "$log")"
+}
+
 # Listing reads declarations even when a configuration's shield is missing.
 # Both configurations declare shields/shared.nix.age, so it is listed under
 # each of them.
-nixos-shields list --json > listing.json
+nixos-shields list --json > listing.json 2> "$TMPDIR/list-stderr.log" \
+  || fail "list failed beside the plaintext key warning"
+expectPlaintextKeyWarning master-identities/throwaway.txt "$TMPDIR/list-stderr.log"
 jq -e '(has("files") | not) and .configurations == {
     alpha: {files: {
       facts: {file: "shields/alpha.nix.age", status: "exists"},
@@ -112,7 +123,9 @@ esac
 EDITOR_SCRIPT
 
 cp shields/shared.nix.age "$TMPDIR/shared-before.age"
-EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields edit alpha:shared
+EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields edit alpha:shared \
+  2> "$TMPDIR/edit-stderr.log"
+expectPlaintextKeyWarning master-identities/throwaway.txt "$TMPDIR/edit-stderr.log"
 cmp shields/shared.nix.age "$TMPDIR/shared-before.age" || fail "unchanged edit rewrote the shield"
 [[ ! -e $(cat "$EDITOR_DIRECTORY") ]] || fail "unchanged edit left plaintext behind"
 
@@ -325,6 +338,36 @@ outside_cache=$(mktemp -d "$TMPDIR/outside-cache.XXXXXX")
   --extra-experimental-features 'nix-command flakes' \
   path:.#nixosConfigurations.beta.config.age.shields.values.shared) == '{"domain":"edited.example.test"}' ]] \
   || fail "evaluation did not decrypt with the outside identity"
+
+# Neither the outside identity nor the absent teammate's earns a warning.
+nixos-shields list > /dev/null 2> "$TMPDIR/outside-stderr.log"
+if grep -q 'warning: master identity' "$TMPDIR/outside-stderr.log"; then
+  fail "warned about an identity outside the flake root: $(cat "$TMPDIR/outside-stderr.log")"
+fi
+
+# Inside the flake root, an unencrypted OpenSSH key warns, while a YubiKey
+# stub, the passphrase-protected age identity, and a passphrase-protected
+# OpenSSH key do not. Only list runs, as encrypting to a YubiKey needs its
+# plugin.
+cp flake.nix "$TMPDIR/flake-before-inside-identities.nix"
+cat > master-identities/yubikey.txt <<'STUB'
+#    Recipient: age1yubikey1qwpx8z4xg2cqnjztq8s0hyum7c3g6dc2zc6t6r4ykhxkk0wp7hm6y5zskw2
+AGE-PLUGIN-YUBIKEY-1QXQPZ9TAZNG7SEQXYXR5XJ
+STUB
+ssh-keygen -q -t ed25519 -N '' -C '' -f master-identities/ssh-plain
+ssh-keygen -q -t ed25519 -N 'example passphrase' -C '' -f master-identities/ssh-locked
+sed -i "s@masterIdentities = \\[ \"$outside_identity\"@masterIdentities = [ ./master-identities/yubikey.txt { identity = ./master-identities/locked.age; pubkey = \"$locked_pubkey\"; } ./master-identities/ssh-locked ./master-identities/ssh-plain \"$outside_identity\"@" flake.nix
+evalExample shields | jq -e '[.masterIdentities[].identity] | index("master-identities/ssh-plain") != null' > /dev/null \
+  || fail "the manifest lacks the identities inside the flake root"
+nixos-shields list > /dev/null 2> "$TMPDIR/inside-stderr.log" \
+  || fail "list failed beside the plaintext key warning"
+expectPlaintextKeyWarning master-identities/ssh-plain "$TMPDIR/inside-stderr.log"
+for identity in yubikey.txt locked.age ssh-locked; do
+  if grep -q "master identity master-identities/$identity " "$TMPDIR/inside-stderr.log"; then
+    fail "warned about master-identities/$identity: $(cat "$TMPDIR/inside-stderr.log")"
+  fi
+done
+cp "$TMPDIR/flake-before-inside-identities.nix" flake.nix
 
 # Extra encryption pubkeys: alpha declares a backup key as a public key,
 # beta a team's recipients file inside the flake. Every shield is encrypted

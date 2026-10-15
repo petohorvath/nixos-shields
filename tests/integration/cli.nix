@@ -9,6 +9,7 @@
   jq,
   nix,
   nixos-shields,
+  openssh,
   rage,
   example,
   kit,
@@ -20,6 +21,7 @@ let
     jq
     nix
     nixos-shields
+    openssh
     rage
   ];
 
