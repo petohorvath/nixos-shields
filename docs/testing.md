@@ -2,31 +2,30 @@
 
 `nix flake check` runs every check below. [AGENTS.md](../AGENTS.md#required-checks) lists the commands and CI setup.
 
-The tests follow the devnix-labs test layout: one directory under [`tests/`](../tests) for each test kind, each with an entry point, `default.nix`, that lists its tests by hand. A test file missing from its entry point's list does not run. [`tests/default.nix`](../tests/default.nix) turns the entry points into checks through the shared runners in [`tests/runners/`](../tests/runners), and [`dev/checks.nix`](../dev/checks.nix) adds `formatting` and `lint`.
+The tests follow the devnix-labs test layout: one directory under [`tests/`](../tests) for each test kind, each with an entry point, `default.nix`, that lists its tests by hand. A test file missing from its entry point's list does not run. [`dev/default.nix`](../dev/default.nix) runs the unit and integration suites through nix-unit's flake-parts module, [`tests/default.nix`](../tests/default.nix) names the build tests, and [`dev/checks.nix`](../dev/checks.nix) adds `formatting` and `lint`.
 
 | Check | Covers |
 | --- | --- |
-| `unit` | The nix-unit suites under `tests/unit`, which evaluate the kit's code alone |
-| `integration` | The nix-unit suites under `tests/integration`, which evaluate the kit inside flake-parts |
+| `nix-unit` | The nix-unit suites: those under `tests/unit` evaluate the kit's code alone, and those under `tests/integration` evaluate it inside flake-parts |
 | `build-cli` | The packaged command-line tool against the example consumer |
 | `build-decrypt-cache` | The decrypt script and its decrypt cache |
 | `build-wrapped-nix` | The wrapped Nix inside the build sandbox |
 | `formatting` | Whether the formatter would change a file |
 | `lint` | statix, deadnix, shellcheck, and actionlint |
 
-## `unit` and `integration`
+## `nix-unit`
 
-The checks run the [nix-unit](https://github.com/nix-community/nix-unit) suites without the plugin. Each suite receives the context that [`tests/test-context.nix`](../tests/test-context.nix) builds: the kit's code imported from source, helpers that evaluate its modules, and the fixtures in [`tests/fixtures`](../tests/fixtures). A unit suite follows the path of the source file it tests. The checks rebuild the flake inputs from store paths with [`tests/helpers/evaluation-inputs.nix`](../tests/helpers/evaluation-inputs.nix), so the sandbox fetches nothing, and run one nix-unit process for each suite.
+The check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites without the plugin, through [nix-unit's flake-parts module](https://github.com/nix-community/nix-unit/blob/main/lib/modules/flake/system.nix). The module publishes the suites as the flake output `tests.systems.<system>`, the unit suites under `unit` and the integration suites under `integration`, and runs them in the build sandbox with every flake input passed as `--override-input`. Each suite receives the context that [`tests/test-context.nix`](../tests/test-context.nix) builds: the kit's code imported from source, helpers that evaluate its modules, and the fixtures in [`tests/fixtures`](../tests/fixtures). A unit suite takes the path of the source file it tests, relative to `lib/` for library code.
 
-Run the suites directly, against the root flake's locked inputs, from the development shell:
+Run the suites directly, against the flake's locked inputs, from the development shell:
 
 ```sh
-nix-unit tests/unit                       # every unit suite
-nix-unit tests/unit --attr nixos.module   # one suite
-nix-unit tests/integration
+nix-unit --flake .#tests.systems.x86_64-linux                     # every suite
+nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module   # one suite
+nix-unit --flake .#tests.systems.x86_64-linux.integration         # the integration suites
 ```
 
-Pass `--arg nixpkgs …` to run the suites against another nixpkgs.
+Add `--override-input nixpkgs <flake-ref>` to run the suites against another nixpkgs.
 
 The unit suites:
 
@@ -36,7 +35,7 @@ The unit suites:
 The integration suites:
 
 - `flake-module` evaluates the flake-parts option tree through `evalFlakeModule`. It covers the manifest it publishes, `shields.configurations` being its only option, its defaults, and selecting configurations from another output.
-- `flake-outputs` evaluates the flake's public outputs with the given inputs and checks that they expose the code the other suites import from source: the `lib` functions, the modules, and the packages.
+- `flake-outputs` checks that the flake itself (`self`) exposes the code the other suites import from source: the `lib` functions and the modules.
 
 ## `build-cli`
 

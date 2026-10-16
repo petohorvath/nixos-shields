@@ -27,11 +27,10 @@ Before exploring or changing code, read the glossary in [GLOSSARY.md](GLOSSARY.m
 The development shell, loaded by `nix develop` or by [nix-direnv](https://github.com/nix-community/nix-direnv) through the tracked `.envrc`, provides the kit's wrapped Nix, nix-unit, the formatter, the linters, and rage. Development outputs live in the `dev` flake-parts partition, so consumers never evaluate them.
 
 ```sh
-nix fmt                                    # fix a failing `formatting` check
-nix-unit tests/unit                        # the unit suites, for a fast loop
-nix-unit tests/unit --attr nixos.module    # one suite
-nix-unit tests/integration                 # the integration suites
-nix flake check                            # every check
+nix fmt                                                           # fix a failing `formatting` check
+nix-unit --flake .#tests.systems.x86_64-linux                     # the nix-unit suites, for a fast loop
+nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module   # one suite
+nix flake check                                                   # every check
 ```
 
 CI calls the shared [project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.6/POLICY.md#caller) workflow at `v0.6` from [`.github/workflows/check.yml`](.github/workflows/check.yml). On x86_64-linux and aarch64-linux, it checks the flake's inputs and public outputs, starts the development shell, and evaluates the formatter. With the locked nixpkgs and with the policy's stable and unstable pins, it evaluates every output and builds every `checks` entry. The policy lists the required statuses; a pull request merges only after they pass. To run the same checks locally from the repository root, as the policy's [local check](https://github.com/petohorvath/nixos-project-policy/blob/v0.6/README.md#local-check) describes:
