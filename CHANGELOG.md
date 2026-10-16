@@ -23,6 +23,7 @@
 - `nixos-shields list` headings name each configuration as `Configuration <name>:`.
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are flake checks, run by `nix flake check` and CI.
+- The tests follow the devnix-labs test layout. The nix-unit suites run as the `unit` and `integration` checks, which replace `tests`, and import the kit from source; a new `flake-outputs` suite checks that the flake exposes the same code. The sandbox tests become `build-cli`, `build-decrypt-cache`, and `build-wrapped-nix`, which replaces `integration`. Run the suites directly with `nix-unit tests/unit` and `nix-unit tests/integration`.
 - The `nixpkgs` input tracks `nixos-26.05` instead of `nixos-unstable`, locked to the nixos-project-policy v0.5.1 stable pin; consumers that do not make it follow their own nixpkgs get the stable release. x86_64-darwin stays undeclared.
 - CI calls the shared project policy `v0.6` workflow instead of its own. It runs on x86_64-linux and aarch64-linux and tests the locked nixpkgs and the policy's stable and unstable pins; the required statuses become `Policy / Check (<system>)` and `Policy / Tests (locked|stable|unstable, <system>)`. There are no VM tests, so no `Policy / VM tests (locked|stable|unstable, <system>)` status is required.
 
