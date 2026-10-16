@@ -24,7 +24,7 @@ let
     }).masterIdentities;
 in
 {
-  testManifestRelativeLocations = {
+  testRelativeLocations = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       configurations = exampleConfigurations;
@@ -35,7 +35,7 @@ in
   # Each configuration's list in name order; an identity repeated
   # anywhere, in any form, appears once, with the public key any of its
   # entries pairs it with.
-  testManifestCombinesConfigurationIdentities = {
+  testCombinesConfigurationIdentities = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = flakeRoot;
@@ -77,7 +77,7 @@ in
   # Each configuration's list in name order, each entry once. A recipients
   # file inside the root, as a path or a string, becomes relative to it;
   # one outside stays absolute. Other strings are public keys.
-  testManifestCombinesExtraEncryptionPubkeys = {
+  testCombinesExtraEncryptionPubkeys = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = root;
@@ -104,7 +104,7 @@ in
     ];
   };
 
-  testManifestRejectsConflictingPublicKeys = {
+  testRejectsConflictingPublicKeys = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = flakeRoot;
@@ -135,7 +135,7 @@ in
 
   # The manifest reads no identity file, so an undeclared stub's public
   # key is null, and a binary identity, which Nix cannot read, is fine.
-  testManifestLeavesUndeclaredStubPubkeyNull = {
+  testLeavesUndeclaredStubPubkeyNull = {
     expr = stubManifestIdentities [
       (stubPath "yubikey.txt")
       (stubPath "binary-passphrase-protected.age")
@@ -152,7 +152,7 @@ in
     ];
   };
 
-  testManifestRejectsMasterIdentitiesArgument = {
+  testRejectsMasterIdentitiesArgument = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       masterIdentities = [ identityPath ];
@@ -160,7 +160,7 @@ in
     expectedError.msg = "unexpected argument 'masterIdentities'";
   };
 
-  testManifestRejectsFilesArgument = {
+  testRejectsFilesArgument = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       files.shared = sharedShieldPath;
@@ -171,7 +171,7 @@ in
   # An identity outside the flake root, such as a plain key under the
   # home directory, keeps its normalized absolute location, so the tool
   # finds it from any working directory; inside ones become relative.
-  testManifestKeepsOutsideIdentitiesAbsolute = {
+  testKeepsOutsideIdentitiesAbsolute = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = root;
@@ -205,7 +205,7 @@ in
     ];
   };
 
-  testManifestRejectsRelativeIdentityString = {
+  testRejectsRelativeIdentityString = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = root;
@@ -218,7 +218,7 @@ in
   };
 
   # Also covers the default of the omitted argument.
-  testManifestIncludesUnshieldedConfigurations = {
+  testIncludesUnshieldedConfigurations = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       configurations.unshielded.config.networking.hostName = "unshielded";
@@ -230,7 +230,7 @@ in
     };
   };
 
-  testManifestAcceptsAbsoluteStrings = {
+  testAcceptsAbsoluteStrings = {
     expr = shieldsLib.mkManifest {
       self.outPath = root;
       configurations.alpha.config.age.shields = {
@@ -250,7 +250,7 @@ in
     };
   };
 
-  testManifestRejectsEscapingString = {
+  testRejectsEscapingString = {
     expr = shieldsLib.mkManifest {
       self.outPath = root;
       configurations.alpha.config.age.shields.files.shared = "${root}/../outside.nix.age";
@@ -261,7 +261,7 @@ in
     };
   };
 
-  testManifestNormalizesStringLocations = {
+  testNormalizesStringLocations = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = "${root}/.";
