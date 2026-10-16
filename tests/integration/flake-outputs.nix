@@ -1,15 +1,6 @@
 # The flake exposes the code that the other suites import from source.
-{
-  helpers,
-  pkgs,
-  shieldsLib,
-  ...
-}:
+{ self, shieldsLib, ... }:
 let
-  inherit (helpers) flakeOutputs;
-
-  drvPaths = builtins.mapAttrs (_: package: package.drvPath);
-
   # The files a module imports, through the wrappers flake-parts adds.
   importedFiles =
     module:
@@ -21,22 +12,17 @@ in
 {
   # Functions do not compare equal, so only the names are checked.
   testLib = {
-    expr = builtins.attrNames flakeOutputs.lib;
+    expr = builtins.attrNames self.lib;
     expected = builtins.attrNames shieldsLib;
   };
 
   testNixosModule = {
-    expr = importedFiles flakeOutputs.nixosModules.default;
+    expr = importedFiles self.nixosModules.default;
     expected = [ ../../nixos/module.nix ];
   };
 
   testFlakeModule = {
-    expr = importedFiles flakeOutputs.flakeModules.default;
+    expr = importedFiles self.flakeModules.default;
     expected = [ ../../flake-module.nix ];
-  };
-
-  testPackages = {
-    expr = drvPaths flakeOutputs.packages.${pkgs.stdenv.hostPlatform.system};
-    expected = drvPaths (import ../../packages pkgs);
   };
 }

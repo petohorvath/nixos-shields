@@ -7,6 +7,7 @@ let
 
   example = ../../examples/consumer;
   flakeParts = inputs.flake-parts;
+  nixUnit = inputs.nix-unit;
   inherit (inputs) nixpkgs;
 
   # The kit as the example's input: its flake and code, not its docs,
@@ -46,6 +47,7 @@ let
         flakeParts
         kit
         nixpkgs
+        nixUnit
         nix.extraBuiltinsFile
       ]
       ++ nativeBuildInputs
@@ -61,6 +63,7 @@ pkgs.runCommand "nixos-shields-cli"
       kit
       nativeBuildInputs
       nixpkgs
+      nixUnit
       ;
   }
   ''
@@ -83,7 +86,8 @@ pkgs.runCommand "nixos-shields-cli"
     nix flake lock --extra-experimental-features 'nix-command flakes' \
       --override-input nixpkgs "path:$nixpkgs" \
       --override-input nixos-shields "path:$kit" \
-      --override-input flake-parts "path:$flakeParts"
+      --override-input flake-parts "path:$flakeParts" \
+      --override-input nixos-shields/nix-unit "path:$nixUnit"
 
     ${builtins.readFile ./cli.sh}
     touch "$out"

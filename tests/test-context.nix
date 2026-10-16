@@ -2,12 +2,14 @@
   The context every nix-unit suite receives: the kit's code imported
   from source, and helpers that evaluate its modules without the
   builtin, as a consumer would. Each eval helper takes the list of
-  modules to evaluate with. flake-parts is null for the unit suites.
+  modules to evaluate with. flake-parts and self are null for the unit
+  suites; system is accepted but unused, as no suite needs a package set.
 */
 {
   flake-parts ? null,
   nixpkgs,
-  system,
+  self ? null,
+  ...
 }:
 let
   inherit (nixpkgs) lib;
@@ -19,8 +21,7 @@ let
   evalConfiguration = modules: (lib.evalModules { inherit modules; }).config.age.shields;
 in
 {
-  inherit fixtures lib;
-  pkgs = nixpkgs.legacyPackages.${system};
+  inherit fixtures lib self;
   shieldsLib = import ../lib;
 
   helpers = {
@@ -36,25 +37,5 @@ in
       (flake-parts.lib.evalFlakeModule { inputs.self.outPath = fixtures.flakeRoot; } {
         imports = [ ../flake-module.nix ] ++ modules;
       }).config;
-
-    # The public flake outputs, assembled with the given inputs, as
-    # consumers see them.
-    flakeOutputs =
-      let
-        inputs = {
-          inherit flake-parts;
-          # flake-parts' inputs' accepts only flakes, and
-          # helpers/evaluation-inputs.nix does not mark its rebuilt
-          # flakes as such.
-          nixpkgs = nixpkgs // {
-            _type = "flake";
-          };
-        };
-        self = (import ../flake.nix).outputs (inputs // { inherit self; }) // {
-          outPath = ../.;
-          inherit inputs;
-        };
-      in
-      self;
   };
 }
