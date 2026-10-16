@@ -21,9 +21,12 @@ Run the suites directly, against the flake's locked inputs, from the development
 
 ```sh
 nix-unit --flake .#tests.systems.x86_64-linux                     # every suite
-nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module   # one suite
 nix-unit --flake .#tests.systems.x86_64-linux.integration         # the integration suites
+nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module   # one suite
+nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module --attr testDefaults   # one test
 ```
+
+Select a single test with `--attr` beside its suite: nix-unit treats an attribute selected through the flake reference as a suite, so a test's full path there does not work.
 
 Add `--override-input nixpkgs <flake-ref>` to run the suites against another nixpkgs.
 

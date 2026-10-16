@@ -30,6 +30,7 @@ The development shell, loaded by `nix develop` or by [nix-direnv](https://github
 nix fmt                                                           # fix a failing `formatting` check
 nix-unit --flake .#tests.systems.x86_64-linux                     # the nix-unit suites, for a fast loop
 nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module   # one suite
+nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module --attr testDefaults   # one test
 nix flake check                                                   # every check
 ```
 
