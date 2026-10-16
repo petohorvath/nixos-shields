@@ -3,13 +3,12 @@
   from source, and helpers that evaluate its modules without the
   builtin, as a consumer would. Each eval helper takes the list of
   modules to evaluate with. flake-parts and self are null for the unit
-  suites; system is accepted but unused, as no suite needs a package set.
+  suites.
 */
 {
   flake-parts ? null,
   nixpkgs,
   self ? null,
-  ...
 }:
 let
   inherit (nixpkgs) lib;

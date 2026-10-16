@@ -2,17 +2,9 @@
   flake-parts,
   nixpkgs,
   self,
-  system,
 }:
 let
-  testContext = import ../test-context.nix {
-    inherit
-      flake-parts
-      nixpkgs
-      self
-      system
-      ;
-  };
+  testContext = import ../test-context.nix { inherit flake-parts nixpkgs self; };
 in
 {
   flake-module = import ./flake-module.nix testContext;
