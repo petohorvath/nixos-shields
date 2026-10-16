@@ -1,40 +1,18 @@
-# The manifest builder and flake-parts option tree, evaluated without
-# the builtin. Only public outputs are read: the manifest and the
-# options of the flake-parts module.
-{
-  evalFlakeModule,
-  flakeRoot,
-  shieldsLib,
-  ...
-}:
+# lib.mkManifest, called directly as a plain flake would.
+{ fixtures, shieldsLib, ... }:
 let
+  inherit (fixtures)
+    exampleConfigurations
+    exampleManifest
+    flakeRoot
+    stubFlakeRoot
+    ;
   root = toString flakeRoot;
-  shieldsDir = flakeRoot + "/shields";
   identityPath = flakeRoot + "/master-identities/throwaway.txt";
   alphaIdentityPath = flakeRoot + "/master-identities/alpha.txt";
   betaIdentityPath = flakeRoot + "/master-identities/beta.txt";
-  sharedShieldPath = shieldsDir + "/shared.nix.age";
-  alphaShieldPath = shieldsDir + "/alpha.nix.age";
+  sharedShieldPath = flakeRoot + "/shields/shared.nix.age";
 
-  # Two configurations that declare one shield file between them.
-  exampleConfigurations = {
-    alpha.config.age.shields = {
-      masterIdentities = [ identityPath ];
-      files = {
-        facts = alphaShieldPath;
-        shared = sharedShieldPath;
-      };
-      values = throw "the manifest must not decrypt shields";
-    };
-    beta.config.age.shields = {
-      masterIdentities = [ identityPath ];
-      files.shared = sharedShieldPath;
-    };
-  };
-
-  # A flake root holding a YubiKey identity stub and a binary
-  # passphrase-protected identity.
-  stubFlakeRoot = ../fixtures/flake;
   stubPath = name: stubFlakeRoot + "/master-identities/${name}";
 
   # The manifest identities of one configuration in the stub flake.
@@ -44,23 +22,6 @@ let
       self.outPath = stubFlakeRoot;
       configurations.alpha.config.age.shields = { inherit masterIdentities; };
     }).masterIdentities;
-
-  exampleManifest = {
-    masterIdentities = [
-      {
-        identity = "master-identities/throwaway.txt";
-        pubkey = null;
-      }
-    ];
-    extraEncryptionPubkeys = [ ];
-    configurations = {
-      alpha.files = {
-        facts = "shields/alpha.nix.age";
-        shared = "shields/shared.nix.age";
-      };
-      beta.files.shared = "shields/shared.nix.age";
-    };
-  };
 in
 {
   testManifestRelativeLocations = {
@@ -253,45 +214,6 @@ in
     expectedError = {
       type = "ThrownError";
       msg = "master identity master-identities/relative\\.txt must be a path or an absolute path string";
-    };
-  };
-
-  testFlakePublishesManifest = {
-    expr = (evalFlakeModule [ { flake.nixosConfigurations = exampleConfigurations; } ]).flake.shields;
-    expected = exampleManifest;
-  };
-
-  # The module declares no shields or identities of its own.
-  testFlakeDeclaresOnlyConfigurations = {
-    expr = builtins.attrNames (evalFlakeModule [ ]).shields;
-    expected = [ "configurations" ];
-  };
-
-  testDefaults = {
-    expr = {
-      inherit ((evalFlakeModule [ ]).shields) configurations;
-      inherit ((evalFlakeModule [ ]).flake) shields;
-    };
-    expected = {
-      configurations = { };
-      shields = {
-        masterIdentities = [ ];
-        extraEncryptionPubkeys = [ ];
-        configurations = { };
-      };
-    };
-  };
-
-  testConfigurationsCanUseAnotherOutput = {
-    expr =
-      (evalFlakeModule [
-        {
-          flake.nixosConfigurations.unused = throw "the default configurations must not be evaluated";
-          shields.configurations.beta.config.age.shields.files.facts = shieldsDir + "/beta.nix.age";
-        }
-      ]).flake.shields.configurations;
-    expected = {
-      beta.files.facts = "shields/beta.nix.age";
     };
   };
 

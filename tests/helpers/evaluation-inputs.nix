@@ -1,21 +1,29 @@
+# test-standard v1: copied from the test-standard skill; do not edit here.
 /*
-  Reconstruct development inputs from store paths for offline test
-  evaluation. flake-parts has no default.nix, so its flake outputs are
-  called directly with the reconstructed nixpkgs as its library input.
+  Rebuild a flake input from store paths, so evaluation in the build
+  sandbox fetches nothing. Takes `{ path; inputs; }`, where each input
+  is a tree of the same shape or an already-built flake, or
+  `{ path; flake = false; }` for a non-flake input.
 */
-{ flakePartsDir, nixpkgsDir }:
 let
-  inputs = {
-    flakeParts = {
-      outPath = flakePartsDir;
-    }
-    // (import (flakePartsDir + "/flake.nix")).outputs {
-      self = inputs.flakeParts;
-      nixpkgs-lib = inputs.nixpkgs;
-    };
-    nixpkgs = (import (nixpkgsDir + "/flake.nix")).outputs {
-      self.outPath = nixpkgsDir;
-    };
-  };
+  rebuild =
+    {
+      path,
+      inputs ? { },
+      flake ? true,
+    }:
+    if !flake then
+      { outPath = path; }
+    else
+      let
+        rebuiltInputs = builtins.mapAttrs (
+          _: input: if input ? outPath then input else rebuild input
+        ) inputs;
+        self = (import (path + "/flake.nix")).outputs (rebuiltInputs // { inherit self; }) // {
+          outPath = path;
+          inputs = rebuiltInputs;
+        };
+      in
+      self;
 in
-inputs
+rebuild

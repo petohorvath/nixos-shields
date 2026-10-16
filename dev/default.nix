@@ -16,7 +16,6 @@
       checks = import ./checks.nix {
         inherit inputs pkgs;
         inherit (config) formatter;
-        packages = self.packages.${system};
       };
     };
 }
