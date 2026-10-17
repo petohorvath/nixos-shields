@@ -299,7 +299,7 @@ plaintext=$workdir/shield.nix
 
 # Read through the decrypt cache, as evaluation does, so a shield already
 # unlocked is not decrypted again. The editor works on a copy, never on
-# the cache entry.
+# the decrypt cache entry.
 decrypt_file() {
   local entry
   entry=$(nixos-shields-decrypt --print-out-path "$1" "${decryption_identities[@]}") || exit

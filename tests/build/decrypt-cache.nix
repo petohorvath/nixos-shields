@@ -117,7 +117,8 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
         fail "command succeeded: $*"
       fi
       grep -q -- "$pattern" "$TMPDIR/stderr.log" \
-        || fail "failure did not mention '$pattern': $(cat "$TMPDIR/stderr.log")"
+        || fail "failure did not mention '$pattern':" \
+          "$(cat "$TMPDIR/stderr.log")"
     }
 
     # Each identity case starts with a cold decrypt cache of its own, so it
@@ -143,24 +144,25 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
     # The primary identity is tried before the given ones, so a hardware
     # identity behind one that decrypts is never prompted. A YubiKey stub
     # given first starts the stand-in plugin, which shows it would be.
-    {
-      echo '#    Recipient: age1yubikey1z53z70zf2e3hqlv2j7jtr0ktmrjl9lcvrynrxszdtfnhfqvwnw5t2d3xvz8'
-      echo 'AGE-PLUGIN-YUBIKEY-1PCDJSD2ZFAWXJA5RJZW64D7Y680WKDV3Z36'
-    } > yubikey.txt
+    echo AGE-PLUGIN-YUBIKEY-1PCDJSD2ZFAWXJA5RJZW64D7Y680WKDV3Z36 > yubikey.txt
     export PLUGIN_STARTS=$TMPDIR/plugin-starts
     touch "$PLUGIN_STARTS"
     pluginStarts() { wc -l < "$PLUGIN_STARTS"; }
+    withPlugin() { PATH="${yubikeyPlugin}/bin:$PATH" "$@"; }
     coldDecryptCache stub-first
-    expectFailure 'age-plugin-yubikey' env PATH="${yubikeyPlugin}/bin:$PATH" \
+    expectFailure 'age-plugin-yubikey' withPlugin \
       nixos-shields-decrypt shield.nix.age yubikey.txt identity.txt
-    [[ $(pluginStarts) == 1 ]] || fail "stub first: plugin started $(pluginStarts) times, expected 1"
+    [[ $(pluginStarts) == 1 ]] \
+      || fail "stub first: plugin started $(pluginStarts) times, expected 1"
     : > "$PLUGIN_STARTS"
     coldDecryptCache primary-first
-    actual=$(PATH="${yubikeyPlugin}/bin:$PATH" NIXOS_SHIELDS_PRIMARY_IDENTITY=identity.txt \
+    actual=$(NIXOS_SHIELDS_PRIMARY_IDENTITY=identity.txt withPlugin \
       nixos-shields-decrypt shield.nix.age yubikey.txt) \
-      || fail "primary first: decryption failed after $(pluginStarts) plugin starts"
+      || fail "primary first: decryption failed after" \
+        "$(pluginStarts) plugin starts"
     [[ $actual == "$second" ]] || fail "primary first: printed '$actual'"
-    [[ $(pluginStarts) == 0 ]] || fail "primary first: the stub's plugin started before the primary identity"
+    [[ $(pluginStarts) == 0 ]] \
+      || fail "primary first: the stub's plugin started before the primary"
 
     # With _ONLY, the primary identity alone decrypts, relative to the
     # caller, even when no given identity exists.
@@ -172,22 +174,29 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
       nixos-shields-decrypt "$TMPDIR/shield.nix.age" absent.txt)
     [[ $actual == "$second" ]] || fail "primary only: printed '$actual'"
     coldDecryptCache only-stranger
-    expectFailure 'No matching keys found' env NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt \
-      NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true nixos-shields-decrypt shield.nix.age identity.txt
+    expectFailure 'No matching keys found' \
+      env NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt \
+      NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+      nixos-shields-decrypt shield.nix.age identity.txt
     # A failed decryption leaves neither an entry nor a partial file behind.
     [[ -z $(find "$NIXOS_SHIELDS_CACHE_DIR" -mindepth 1 -print -quit) ]] \
-      || fail "failed decryption left $(ls -A "$NIXOS_SHIELDS_CACHE_DIR") in the cache"
-    expectFailure 'NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY' \
-      env NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true nixos-shields-decrypt shield.nix.age identity.txt
+      || fail "failed decryption left in the decrypt cache:" \
+        "$(ls -A "$NIXOS_SHIELDS_CACHE_DIR")"
+    expectFailure 'IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY' \
+      env NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+      nixos-shields-decrypt shield.nix.age identity.txt
     expectFailure 'primary identity does not exist: absent.txt' \
-      env NIXOS_SHIELDS_PRIMARY_IDENTITY=absent.txt nixos-shields-decrypt shield.nix.age identity.txt
+      env NIXOS_SHIELDS_PRIMARY_IDENTITY=absent.txt \
+      nixos-shields-decrypt shield.nix.age identity.txt
 
     # The variables choose identities only on a miss, not the decrypt cache
-    # key.
-    coldDecryptCache absent
-    actual=$(NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
+    # key: the entry the absent identity case left serves a hit.
+    export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/cache-absent
+    actual=$(NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt \
+      NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
       nixos-shields-decrypt shield.nix.age identity.txt)
-    [[ $actual == "$second" ]] || fail "hit with primary only: printed '$actual'"
+    [[ $actual == "$second" ]] \
+      || fail "hit with primary only: printed '$actual'"
 
     # --clean removes the decrypt cache with its entries; one already
     # removed is no error.
@@ -202,15 +211,21 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
 
     # An accidental override must not erase unrelated files: --clean refuses
     # a symlink and a directory containing /, the home directory, the
-    # current directory, or a directory it is given.
-    expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$HOME" nixos-shields-decrypt --clean
-    expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$TMPDIR" nixos-shields-decrypt --clean
-    ln -s "$HOME" cache-link
-    expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/cache-link" nixos-shields-decrypt --clean
+    # current directory, or a directory it is given. Each case below can
+    # trip only its own refusal.
+    refusesClean() {
+      expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$1" \
+        nixos-shields-decrypt --clean "''${@:2}"
+    }
+    refusesClean "$HOME"
+    ln -s "$TMPDIR/elsewhere" cache-link
+    refusesClean "$TMPDIR/cache-link"
+    mkdir -p working/directory
+    (cd working/directory && refusesClean "$TMPDIR/working")
     mkdir -p guarded/flake
-    expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/guarded" \
-      nixos-shields-decrypt --clean "$TMPDIR/guarded/flake"
-    [[ -f $HOME/keep && -d guarded/flake ]] || fail "clean removed unrelated files"
+    refusesClean "$TMPDIR/guarded" "$TMPDIR/guarded/flake"
+    [[ -f $HOME/keep && -d working/directory && -d guarded/flake ]] \
+      || fail "clean removed unrelated files"
 
     touch "$out"
   ''

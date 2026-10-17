@@ -116,4 +116,4 @@ The variables affect decryption in `edit` and in `rekey` without `--identity`, n
 nixos-shields clean
 ```
 
-`clean` removes the current user's [decrypt cache](reference.md#decrypt-cache), honouring `NIXOS_SHIELDS_CACHE_DIR`. It works outside a flake and does not evaluate a manifest. It refuses a decrypt cache directory that is a symlink, is not owned by the current user, lies in `/nix/store`, or contains `/`, the home directory, the current directory, or the selected flake.
+`clean` removes the current user's [decrypt cache](reference.md#decrypt-cache), honouring `NIXOS_SHIELDS_CACHE_DIR`, through the decrypt script's `nixos-shields-decrypt --clean`, so its refusals start with `nixos-shields-decrypt:`. It works outside a flake and does not evaluate a manifest. It refuses a decrypt cache directory that is a symlink, is not owned by the current user, lies in `/nix/store`, or contains `/`, the home directory, the current directory, or the selected flake.

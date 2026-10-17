@@ -12,8 +12,9 @@
 # given ones; with NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true, it is the only
 # one. Neither changes the cache key.
 #
-# --clean removes the decrypt cache, refusing a directory that contains
-# /, the home directory, the current directory, or a directory given.
+# --clean removes the decrypt cache. It refuses a symlink, a directory
+# another user owns or one in /nix/store, and one containing /, the home
+# directory, the current directory, or a protected directory given.
 
 die() {
   echo "nixos-shields-decrypt: $*" >&2

@@ -66,7 +66,17 @@ Every run of the tool that names no decrypt cache gets a cold one of its own, so
 
 ## `build-decrypt-cache`
 
-The check drives the decrypt script directly with a throwaway master identity and a counting wrapper in place of `rage`. It asserts that a miss decrypts, that a hit does not, including for a copy of the same file elsewhere, that a changed file gets its own entry, that `--print-out-path` names the entry, and that `NIXOS_SHIELDS_CACHE_DIR` moves the directory. It covers the identities a miss decrypts with: absent identity files skipped, failing when none exists, a primary identity followed by the given ones, the primary identity tried first, shown by a stand-in `age-plugin-yubikey` that a YubiKey stub given first starts and that a primary identity able to decrypt leaves idle, `_ONLY` decrypting with a primary identity relative to the caller alone, and the failures of `_ONLY` without a primary identity and of a missing primary identity. It also asserts that a hit ignores the primary identity variables, that a failed decryption leaves no partial file, and that `--clean` removes the decrypt cache, accepts one already removed, and refuses a symlink and a directory containing the home directory, the current directory, or a directory it is given.
+The check drives the decrypt script directly with a throwaway master identity and a counting wrapper in place of `rage`. It covers:
+
+- a miss decrypting and a hit not, including for a copy of the same file elsewhere
+- a changed file getting its own entry beside the old one
+- `--print-out-path` naming the entry, and `NIXOS_SHIELDS_CACHE_DIR` moving the directory
+- absent identity files skipped, and failing when none exists
+- a primary identity followed by the given ones, and tried before them, shown by a stand-in `age-plugin-yubikey` that a YubiKey stub given first starts and that a primary identity able to decrypt leaves idle
+- `_ONLY` decrypting with a primary identity relative to the caller alone, and the failures of `_ONLY` without a primary identity and of a missing primary identity
+- a hit ignoring the primary identity variables
+- a failed decryption leaving no partial file
+- `--clean` removing the decrypt cache and accepting one already removed, and refusing a symlink and a directory containing the home directory, the current directory, or a directory given to it, each case tripping only its own refusal
 
 ## `build-wrapped-nix`
 
