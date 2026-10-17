@@ -1,5 +1,7 @@
 { inputs, self, ... }:
 {
+  imports = [ inputs.nix-unit.modules.flake.default ];
+
   perSystem =
     {
       config,
@@ -17,6 +19,15 @@
         inherit inputs pkgs;
         inherit (config) formatter;
         packages = self.packages.${system};
+      };
+      nix-unit = {
+        package = pkgs.nix-unit;
+        inputs = removeAttrs inputs [ "self" ];
+        enableSystemAgnostic = false;
+        tests = {
+          unit = import ../tests/unit { inherit (inputs) nixpkgs; };
+          integration = import ../tests/integration { inherit (inputs) flake-parts nixpkgs self; };
+        };
       };
     };
 }

@@ -4,7 +4,7 @@ The flake's public interface: its outputs, library functions, module options, an
 
 ## Flake outputs
 
-The table lists the consumer-facing outputs. The `checks`, `devShells`, and `formatter` outputs come from the `dev` flake-parts partition and serve development only.
+The table lists the consumer-facing outputs. The `checks`, `devShells`, `formatter`, and `tests` outputs come from the `dev` flake-parts partition and serve development only.
 
 | Output | Content |
 | --- | --- |

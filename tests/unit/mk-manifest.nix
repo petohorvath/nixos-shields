@@ -1,40 +1,18 @@
-# The manifest builder and flake-parts option tree, evaluated without
-# the builtin. Only public outputs are read: the manifest and the
-# options of the flake-parts module.
-{
-  evalFlakeModule,
-  flakeRoot,
-  shieldsLib,
-  ...
-}:
+# lib.mkManifest, called directly as a plain flake would.
+{ fixtures, shieldsLib, ... }:
 let
+  inherit (fixtures)
+    exampleConfigurations
+    exampleManifest
+    flakeRoot
+    stubFlakeRoot
+    ;
   root = toString flakeRoot;
-  shieldsDir = flakeRoot + "/shields";
   identityPath = flakeRoot + "/master-identities/throwaway.txt";
   alphaIdentityPath = flakeRoot + "/master-identities/alpha.txt";
   betaIdentityPath = flakeRoot + "/master-identities/beta.txt";
-  sharedShieldPath = shieldsDir + "/shared.nix.age";
-  alphaShieldPath = shieldsDir + "/alpha.nix.age";
+  sharedShieldPath = flakeRoot + "/shields/shared.nix.age";
 
-  # Two configurations that declare one shield file between them.
-  exampleConfigurations = {
-    alpha.config.age.shields = {
-      masterIdentities = [ identityPath ];
-      files = {
-        facts = alphaShieldPath;
-        shared = sharedShieldPath;
-      };
-      values = throw "the manifest must not decrypt shields";
-    };
-    beta.config.age.shields = {
-      masterIdentities = [ identityPath ];
-      files.shared = sharedShieldPath;
-    };
-  };
-
-  # A flake root holding a YubiKey identity stub and a binary
-  # passphrase-protected identity.
-  stubFlakeRoot = ../fixtures/flake;
   stubPath = name: stubFlakeRoot + "/master-identities/${name}";
 
   # The manifest identities of one configuration in the stub flake.
@@ -44,26 +22,9 @@ let
       self.outPath = stubFlakeRoot;
       configurations.alpha.config.age.shields = { inherit masterIdentities; };
     }).masterIdentities;
-
-  exampleManifest = {
-    masterIdentities = [
-      {
-        identity = "master-identities/throwaway.txt";
-        pubkey = null;
-      }
-    ];
-    extraEncryptionPubkeys = [ ];
-    configurations = {
-      alpha.files = {
-        facts = "shields/alpha.nix.age";
-        shared = "shields/shared.nix.age";
-      };
-      beta.files.shared = "shields/shared.nix.age";
-    };
-  };
 in
 {
-  testManifestRelativeLocations = {
+  testRelativeLocations = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       configurations = exampleConfigurations;
@@ -74,7 +35,7 @@ in
   # Each configuration's list in name order; an identity repeated
   # anywhere, in any form, appears once, with the public key any of its
   # entries pairs it with.
-  testManifestCombinesConfigurationIdentities = {
+  testCombinesConfigurationIdentities = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = flakeRoot;
@@ -116,7 +77,7 @@ in
   # Each configuration's list in name order, each entry once. A recipients
   # file inside the root, as a path or a string, becomes relative to it;
   # one outside stays absolute. Other strings are public keys.
-  testManifestCombinesExtraEncryptionPubkeys = {
+  testCombinesExtraEncryptionPubkeys = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = root;
@@ -143,7 +104,7 @@ in
     ];
   };
 
-  testManifestRejectsConflictingPublicKeys = {
+  testRejectsConflictingPublicKeys = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = flakeRoot;
@@ -174,7 +135,7 @@ in
 
   # The manifest reads no identity file, so an undeclared stub's public
   # key is null, and a binary identity, which Nix cannot read, is fine.
-  testManifestLeavesUndeclaredStubPubkeyNull = {
+  testLeavesUndeclaredStubPubkeyNull = {
     expr = stubManifestIdentities [
       (stubPath "yubikey.txt")
       (stubPath "binary-passphrase-protected.age")
@@ -191,7 +152,7 @@ in
     ];
   };
 
-  testManifestRejectsMasterIdentitiesArgument = {
+  testRejectsMasterIdentitiesArgument = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       masterIdentities = [ identityPath ];
@@ -199,7 +160,7 @@ in
     expectedError.msg = "unexpected argument 'masterIdentities'";
   };
 
-  testManifestRejectsFilesArgument = {
+  testRejectsFilesArgument = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       files.shared = sharedShieldPath;
@@ -210,7 +171,7 @@ in
   # An identity outside the flake root, such as a plain key under the
   # home directory, keeps its normalized absolute location, so the tool
   # finds it from any working directory; inside ones become relative.
-  testManifestKeepsOutsideIdentitiesAbsolute = {
+  testKeepsOutsideIdentitiesAbsolute = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = root;
@@ -244,7 +205,7 @@ in
     ];
   };
 
-  testManifestRejectsRelativeIdentityString = {
+  testRejectsRelativeIdentityString = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = root;
@@ -256,47 +217,8 @@ in
     };
   };
 
-  testFlakePublishesManifest = {
-    expr = (evalFlakeModule [ { flake.nixosConfigurations = exampleConfigurations; } ]).flake.shields;
-    expected = exampleManifest;
-  };
-
-  # The module declares no shields or identities of its own.
-  testFlakeDeclaresOnlyConfigurations = {
-    expr = builtins.attrNames (evalFlakeModule [ ]).shields;
-    expected = [ "configurations" ];
-  };
-
-  testDefaults = {
-    expr = {
-      inherit ((evalFlakeModule [ ]).shields) configurations;
-      inherit ((evalFlakeModule [ ]).flake) shields;
-    };
-    expected = {
-      configurations = { };
-      shields = {
-        masterIdentities = [ ];
-        extraEncryptionPubkeys = [ ];
-        configurations = { };
-      };
-    };
-  };
-
-  testConfigurationsCanUseAnotherOutput = {
-    expr =
-      (evalFlakeModule [
-        {
-          flake.nixosConfigurations.unused = throw "the default configurations must not be evaluated";
-          shields.configurations.beta.config.age.shields.files.facts = shieldsDir + "/beta.nix.age";
-        }
-      ]).flake.shields.configurations;
-    expected = {
-      beta.files.facts = "shields/beta.nix.age";
-    };
-  };
-
   # Also covers the default of the omitted argument.
-  testManifestIncludesUnshieldedConfigurations = {
+  testIncludesUnshieldedConfigurations = {
     expr = shieldsLib.mkManifest {
       self.outPath = flakeRoot;
       configurations.unshielded.config.networking.hostName = "unshielded";
@@ -308,7 +230,7 @@ in
     };
   };
 
-  testManifestAcceptsAbsoluteStrings = {
+  testAcceptsAbsoluteStrings = {
     expr = shieldsLib.mkManifest {
       self.outPath = root;
       configurations.alpha.config.age.shields = {
@@ -328,7 +250,7 @@ in
     };
   };
 
-  testManifestRejectsEscapingString = {
+  testRejectsEscapingString = {
     expr = shieldsLib.mkManifest {
       self.outPath = root;
       configurations.alpha.config.age.shields.files.shared = "${root}/../outside.nix.age";
@@ -339,7 +261,7 @@ in
     };
   };
 
-  testManifestNormalizesStringLocations = {
+  testNormalizesStringLocations = {
     expr =
       (shieldsLib.mkManifest {
         self.outPath = "${root}/.";

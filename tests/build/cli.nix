@@ -1,28 +1,35 @@
-/*
-  Seam 2: the packaged command over a writable example consumer, with
-  real encryption and wrapped Nix evaluation in the build sandbox.
-*/
-{
-  closureInfo,
-  runCommand,
-  stdenvNoCC,
-  jq,
-  nix,
-  nixos-shields,
-  openssh,
-  rage,
-  example,
-  kit,
-  nixpkgs,
-  flakeParts,
-}:
+# Seam 2: the packaged command over a writable example consumer, with
+# real encryption and wrapped Nix evaluation in the build sandbox.
+{ inputs, pkgs }:
 let
+  inherit (pkgs) lib;
+  inherit (inputs.self.packages.${pkgs.stdenv.hostPlatform.system}) nix nixos-shields;
+
+  example = ../../examples/consumer;
+  flakeParts = inputs.flake-parts;
+  nixUnit = inputs.nix-unit;
+  inherit (inputs) nixpkgs;
+
+  # The kit as the example's input: its flake and code, not its docs,
+  # dev/, or tests/, which the example never reads, so neither a README
+  # edit nor a tooling change rebuilds this test.
+  kit = lib.fileset.toSource {
+    root = ../..;
+    fileset = lib.fileset.unions [
+      ../../flake.nix
+      ../../flake-module.nix
+      ../../lib
+      ../../nixos
+      ../../packages
+    ];
+  };
+
   nativeBuildInputs = [
-    jq
     nix
     nixos-shields
-    openssh
-    rage
+    pkgs.jq
+    pkgs.openssh
+    pkgs.rage
   ];
 
   /*
@@ -31,15 +38,16 @@ let
     unregistered, its read-only copy blocks the write. The builder scripts
     are inputs of this derivation rather than of stdenv's closure.
   */
-  builderScripts = builtins.filter builtins.isPath (runCommand "builder-scripts" { } "").args;
-  sandboxRegistration = closureInfo {
+  builderScripts = builtins.filter builtins.isPath (pkgs.runCommand "builder-scripts" { } "").args;
+  sandboxRegistration = pkgs.closureInfo {
     rootPaths = map (path: "${path}") (
       [
-        stdenvNoCC
+        pkgs.stdenvNoCC
         example
         flakeParts
         kit
         nixpkgs
+        nixUnit
         nix.extraBuiltinsFile
       ]
       ++ nativeBuildInputs
@@ -47,7 +55,7 @@ let
     );
   };
 in
-runCommand "nixos-shields-cli"
+pkgs.runCommand "nixos-shields-cli"
   {
     inherit
       example
@@ -55,6 +63,7 @@ runCommand "nixos-shields-cli"
       kit
       nativeBuildInputs
       nixpkgs
+      nixUnit
       ;
   }
   ''
@@ -66,7 +75,8 @@ runCommand "nixos-shields-cli"
 
     # Make the sandbox inputs known to the evaluation store without taking
     # ownership of them.
-    nix-store --store "$NIX_REMOTE" --load-db < ${sandboxRegistration}/registration
+    nix-store --store "$NIX_REMOTE" --load-db \
+      < ${sandboxRegistration}/registration
 
     # A space in the checkout name exercises path handling too.
     consumer="$TMPDIR/example consumer"
@@ -76,7 +86,8 @@ runCommand "nixos-shields-cli"
     nix flake lock --extra-experimental-features 'nix-command flakes' \
       --override-input nixpkgs "path:$nixpkgs" \
       --override-input nixos-shields "path:$kit" \
-      --override-input flake-parts "path:$flakeParts"
+      --override-input flake-parts "path:$flakeParts" \
+      --override-input nixos-shields/nix-unit "path:$nixUnit"
 
     ${builtins.readFile ./cli.sh}
     touch "$out"

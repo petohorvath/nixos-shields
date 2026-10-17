@@ -2,20 +2,46 @@
 
 `nix flake check` runs every check below. [AGENTS.md](../AGENTS.md#required-checks) lists the commands and CI setup.
 
+The tests follow the devnix-labs test layout: one directory under [`tests/`](../tests) for each test kind, each with an entry point, `default.nix`, that lists its tests by hand. A test file missing from its entry point's list does not run. [`dev/default.nix`](../dev/default.nix) runs the unit and integration suites through nix-unit's flake-parts module, [`tests/default.nix`](../tests/default.nix) names the build tests, and [`dev/checks.nix`](../dev/checks.nix) adds `formatting`, `lint`, and a `package-<name>` check for each package.
+
 | Check | Covers |
 | --- | --- |
-| `integration` | The wrapped Nix inside the build sandbox |
-| `cli` | The packaged command-line tool against the example consumer |
-| `tests` | The nix-unit suites under `tests/suites` |
-| `decrypt-cache` | The decrypt script and its decrypt cache |
+| `nix-unit` | The nix-unit suites: those under `tests/unit` evaluate the kit's code alone, and those under `tests/integration` evaluate it inside flake-parts |
+| `build-cli` | The packaged command-line tool against the example consumer |
+| `build-decrypt-cache` | The decrypt script and its decrypt cache |
+| `build-wrapped-nix` | The wrapped Nix inside the build sandbox |
 | `formatting` | Whether the formatter would change a file |
 | `lint` | statix, deadnix, shellcheck, and actionlint |
+| `package-<name>` | Whether each package of the `packages` output except `default` builds: `decrypt`, `extra-builtins`, `nix`, `nix-plugins`, and `nixos-shields` |
 
-## `integration`
+## `nix-unit`
 
-The check verifies that the wrapped Nix's multi-call binaries keep their identity and load the builtin. It then evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, both with the default extra-builtins file and through a consumer's combined file supplied to `lib.mkNix`. With the default file, it also gives the identity as an attribute set entry whose `identity` is a path or an absolute string, calls the builtin directly with an absolute string identity and with a relative one, which fails, and confirms that neither the fixture nor the identity is copied into the store. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
+The check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites without the plugin, through [nix-unit's flake-parts module](https://github.com/nix-community/nix-unit/blob/main/lib/modules/flake/system.nix). The module publishes the suites as the flake output `tests.systems.<system>`, the unit suites under `unit` and the integration suites under `integration`, and runs them in the build sandbox with every flake input passed as `--override-input`. Each suite receives the context that [`tests/test-context.nix`](../tests/test-context.nix) builds: the kit's code imported from source, helpers that evaluate its modules, and the fixtures in [`tests/fixtures`](../tests/fixtures). A unit suite takes the path of the source file it tests, relative to `lib/` for library code.
 
-## `cli`
+Run the suites directly, against the flake's locked inputs, from the development shell:
+
+```sh
+nix-unit --flake .#tests.systems.x86_64-linux                     # every suite
+nix-unit --flake .#tests.systems.x86_64-linux.integration         # the integration suites
+nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module   # one suite
+nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module --attr testDefaults   # one test
+```
+
+Select a single test with `--attr` beside its suite: nix-unit treats an attribute selected through the flake reference as a suite, so a test's full path there does not work.
+
+Add `--override-input nixpkgs <flake-ref>` to run the suites against another nixpkgs.
+
+The unit suites:
+
+- `nixos.module` drives the option tree of [`nixos/module.nix`](../nixos/module.nix) through `evalModules`. It covers defaults, the attribute set form every master identity entry reads back as, including agenix-rekey's `age.rekey.masterIdentities` value, a relative string failing, `extraEncryptionPubkeys` reading back public keys and recipients files as given, wiring files from `dir`, `values` being read-only, and the failures a missing file or an empty identity list produce.
+- `mk-manifest` checks `lib.mkManifest` directly for plain flakes: relative locations, identities outside the flake root staying absolute while shield files outside it fail, a relative identity string failing, the `identity` and `pubkey` entries it combines from configurations without duplicates, a `null` public key for a YubiKey stub and a binary identity under `tests/fixtures` that no entry pairs with one, the failure for one identity paired with different public keys, extra encryption pubkeys combined from configurations without duplicates, where recipients files inside the root become relative and those outside stay absolute, configurations without the shields module, and the removed `masterIdentities` and `files` arguments failing.
+
+The integration suites:
+
+- `flake-module` evaluates the flake-parts option tree through `evalFlakeModule`. It covers the manifest it publishes, `shields.configurations` being its only option, its defaults, and selecting configurations from another output.
+- `flake-outputs` checks that the flake itself (`self`) exposes the code the other suites import from source: the `lib` functions and the modules.
+
+## `build-cli`
 
 The check copies the [example consumer](../examples/consumer) into a writable directory and drives the packaged tool. It covers:
 
@@ -35,16 +61,13 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 - no shield file and no outside identity copied into the store
 - decrypt cache removal
 
-## `tests`
-
-The check runs the [nix-unit](https://github.com/nix-community/nix-unit) suites without the plugin, against the flake's public outputs:
-
-- `nixosModule` drives the option tree through `evalModules`. It covers defaults, the attribute set form every master identity entry reads back as, including agenix-rekey's `age.rekey.masterIdentities` value, a relative string failing, `extraEncryptionPubkeys` reading back public keys and recipients files as given, wiring files from `dir`, `values` being read-only, and the failures a missing file or an empty identity list produce.
-- `flakeModule` evaluates the flake-parts option tree. It covers the manifest it publishes, `shields.configurations` being its only option, its defaults, and selecting configurations from another output. It also checks `lib.mkManifest` directly for plain flakes: relative locations, identities outside the flake root staying absolute while shield files outside it fail, a relative identity string failing, the `identity` and `pubkey` entries it combines from configurations without duplicates, a `null` public key for a YubiKey stub and a binary identity under `tests/fixtures` that no entry pairs with one, the failure for one identity paired with different public keys, extra encryption pubkeys combined from configurations without duplicates, where recipients files inside the root become relative and those outside stay absolute, and the removed `masterIdentities` and `files` arguments failing.
-
-## `decrypt-cache`
+## `build-decrypt-cache`
 
 The check drives the decrypt script directly with a throwaway master identity and a counting wrapper in place of `rage`. It asserts that a miss decrypts, that a hit does not, including for a copy of the same file elsewhere, that a changed file gets its own entry, that `--print-out-path` names the entry, and that `NIXOS_SHIELDS_CACHE_DIR` moves the directory.
+
+## `build-wrapped-nix`
+
+The check verifies that the wrapped Nix's multi-call binaries keep their identity and load the builtin. It then evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, both with the default extra-builtins file and through a consumer's combined file supplied to `lib.mkNix`. With the default file, it also gives the identity as an attribute set entry whose `identity` is a path or an absolute string, calls the builtin directly with an absolute string identity and with a relative one, which fails, and confirms that neither the fixture nor the identity is copied into the store. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
 
 ## `formatting` and `lint`
 

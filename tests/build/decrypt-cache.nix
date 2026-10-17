@@ -5,26 +5,23 @@
   script against a counting wrapper around rage rather than by
   shadowing rage on the check's own PATH.
 */
-{
-  runCommand,
-  writeShellScriptBin,
-  callPackage,
-  rage,
-}:
+{ inputs, pkgs }:
 let
   # Records every invocation, then behaves exactly like rage.
-  countingRage = writeShellScriptBin "rage" ''
+  countingRage = pkgs.writeShellScriptBin "rage" ''
     echo >> "$RAGE_CALLS"
-    exec ${rage}/bin/rage "$@"
+    exec ${pkgs.rage}/bin/rage "$@"
   '';
 
-  decrypt = callPackage ../../packages/decrypt/package.nix { rage = countingRage; };
+  decrypt = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.decrypt.override {
+    rage = countingRage;
+  };
 in
-runCommand "nixos-shields-decrypt-cache"
+pkgs.runCommand "nixos-shields-decrypt-cache"
   {
     nativeBuildInputs = [
       decrypt
-      rage
+      pkgs.rage
     ];
   }
   ''

@@ -3,28 +3,35 @@
   build sandbox (seam 1 of the spec's testing decisions): the multi-call
   binaries, then the library function on a fixture made at check time,
   directly and through a consumer's combined extra-builtins file. The cli
-  check evaluates the example consumer.
+  test evaluates the example consumer.
 
   The sandbox's store directory is group-writable, so the check opens a
   Nix store whose physical directory is that one and whose database lives
   under the build directory.
 */
-{
-  runCommand,
-  jq,
-  nix,
-  composedNix,
-  rage,
-  libDir,
-}:
-runCommand "nixos-shields-integration"
+{ inputs, pkgs }:
+let
+  inherit (inputs.self.packages.${pkgs.stdenv.hostPlatform.system}) nix;
+
+  # A consumer's extra-builtins file that adds its own builtin.
+  composedNix = inputs.self.lib.mkNix {
+    inherit pkgs;
+    extraBuiltinsFile = pkgs.writeText "consumer-extra-builtins.nix" ''
+      args:
+      (import ${nix.extraBuiltinsFile} args) // {
+        consumerAnswer = 42;
+      }
+    '';
+  };
+in
+pkgs.runCommand "nixos-shields-wrapped-nix"
   {
     nativeBuildInputs = [
-      jq
       nix
-      rage
+      pkgs.jq
+      pkgs.rage
     ];
-    inherit libDir;
+    libDir = ../../lib;
   }
   ''
     export HOME=$TMPDIR/home

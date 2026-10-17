@@ -5,12 +5,10 @@
   so the module's wiring of files to values is observable without a
   plugin build.
 */
-{
-  evalNixosModule,
-  existingShieldPath,
-  ...
-}:
+{ fixtures, helpers, ... }:
 let
+  inherit (helpers) evalNixosModule;
+
   # The consumer's own wiring builds file locations from dir.
   wiredFromDir =
     { config, ... }:
@@ -48,7 +46,7 @@ let
     };
 
   missingFile.age.shields.files.facts = /srv/shields/missing.nix.age;
-  existingFile.age.shields.files.facts = existingShieldPath;
+  existingFile.age.shields.files.facts = fixtures.existingShieldPath;
 in
 {
   testDefaults = {
