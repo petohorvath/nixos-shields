@@ -148,14 +148,22 @@ For the [example consumer](../examples/consumer), `nix eval --json .#shields` re
 {
   "configurations": {
     "alpha": {
-      "files": { "facts": "shields/alpha.nix.age", "shared": "shields/shared.nix.age" }
+      "files": {
+        "facts": "shields/alpha.nix.age",
+        "shared": "shields/shared.nix.age"
+      }
     },
     "beta": {
-      "files": { "facts": "shields/beta.nix.age", "shared": "shields/shared.nix.age" }
+      "files": {
+        "facts": "shields/beta.nix.age",
+        "shared": "shields/shared.nix.age"
+      }
     }
   },
   "extraEncryptionPubkeys": [],
-  "masterIdentities": [{ "identity": "master-identities/throwaway.txt", "pubkey": null }]
+  "masterIdentities": [
+    { "identity": "master-identities/throwaway.txt", "pubkey": null }
+  ]
 }
 ```
 
