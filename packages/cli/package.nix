@@ -2,6 +2,7 @@
   writeShellApplication,
   bash,
   coreutils,
+  decrypt,
   diffutils,
   gnugrep,
   jq,
@@ -13,6 +14,7 @@ writeShellApplication {
   runtimeInputs = [
     bash
     coreutils
+    decrypt
     diffutils
     gnugrep
     jq

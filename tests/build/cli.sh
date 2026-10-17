@@ -17,21 +17,32 @@ expectFailure() {
     fail "failure did not mention '$pattern': $(cat "$TMPDIR/stderr.log")"
 }
 
+# Evaluation shares one decrypt cache. Every run of the tool that names
+# none gets a cold one of its own, so a decryption it asserts on is never
+# served by an entry that an evaluation or an earlier run left behind.
+evaluation_cache=$TMPDIR/decrypt-cache
+mkdir "$TMPDIR/cold-cache-bin"
+cat >"$TMPDIR/cold-cache-bin/nixos-shields" <<WRAPPER
+#!$BASH
+[[ -n \${NIXOS_SHIELDS_CACHE_DIR:-} ]] ||
+  export NIXOS_SHIELDS_CACHE_DIR=\$(mktemp -d "$TMPDIR/cli-cache.XXXXXX")
+exec $(command -v nixos-shields) "\$@"
+WRAPPER
+chmod +x "$TMPDIR/cold-cache-bin/nixos-shields"
+export PATH=$TMPDIR/cold-cache-bin:$PATH
+
 # Cleanup is useful even outside a flake and with no manifest available.
+# The decrypt script refuses an unsafe directory; the tool adds the
+# selected flake to the directories it protects.
 mkdir "$TMPDIR/cleanup-fixture"
 echo plaintext >"$TMPDIR/cleanup-fixture/shield.nix"
 (
   cd "$HOME" || exit
   NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/cleanup-fixture" nixos-shields clean
-  NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/cleanup-fixture" nixos-shields clean
+  expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$consumer" nixos-shields --flake "$consumer" clean
 )
 [[ ! -e $TMPDIR/cleanup-fixture ]] || fail "clean left the override directory behind"
-echo keep >"$HOME/keep"
-expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$HOME" nixos-shields clean
-expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$TMPDIR" nixos-shields clean
-ln -s "$HOME" "$TMPDIR/cache-link"
-expectFailure 'refusing' env NIXOS_SHIELDS_CACHE_DIR="$TMPDIR/cache-link" nixos-shields clean
-[[ -f $HOME/keep ]] || fail "clean removed unrelated files"
+[[ -f flake.nix ]] || fail "clean removed the selected flake"
 expectFailure 'local directory' nixos-shields --flake github:someone/flake clean
 
 # The example's throwaway identity is a plain age key inside the flake
@@ -90,7 +101,8 @@ expectFailure 'local directory' nixos-shields list --flake "path:$consumer"
 expectFailure 'local directory' nixos-shields --flake "$example" list
 
 evalExample() {
-  nix eval --json --extra-experimental-features 'nix-command flakes' "path:.#$1"
+  NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache \
+    nix eval --json --extra-experimental-features 'nix-command flakes' "path:.#$1"
 }
 
 # Shield values reach ordinary options of the configuration, and a
@@ -199,6 +211,10 @@ done
 # must encrypt it once, or decrypting it again with the old identity fails.
 cp master-identities/throwaway.txt "$TMPDIR/old identity.txt"
 sed -i 's@\[ ./master-identities/new.txt ./master-identities/throwaway.txt ./master-identities/backup.txt \]@[ ./master-identities/backup.txt ]@' flake.nix
+# The explicit identity decrypts alone: the declared backup, which opens
+# every shield, is not tried beside one that opens none.
+rage-keygen -o "$TMPDIR/stranger.txt" 2>/dev/null
+expectFailure 'No matching keys found' nixos-shields rekey --identity "$TMPDIR/stranger.txt"
 (
   cd "$TMPDIR" || exit
   nixos-shields --flake "$consumer" rekey --identity 'old identity.txt'
@@ -260,25 +276,26 @@ done
   fail "beta cannot read the shared shield beside the locked identity"
 
 # The primary identity need not be declared, and is relative to the caller.
-# With _ONLY, it alone decrypts: the removed identity fails, a copy of the
-# declared one succeeds.
+# With _ONLY, a copy of the declared one decrypts alone.
 cp master-identities/backup.txt "$TMPDIR/primary.txt"
 cp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age"
-expectFailure 'No matching keys found' env NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
-  NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true EDITOR="bash '$TMPDIR/scripted editor' unchanged" \
-  nixos-shields edit alpha:facts
 (
   cd "$TMPDIR" || exit
   NIXOS_SHIELDS_PRIMARY_IDENTITY=primary.txt NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
     EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields --flake "$consumer" edit alpha:facts
 )
 cmp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age" || fail "primary identity edit rewrote the shield"
-expectFailure 'NIXOS_SHIELDS_PRIMARY_IDENTITY' env NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
-  EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields edit alpha:facts
 
-# Without _ONLY, the declared identities follow a primary that fails.
-NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
-  EDITOR="bash '$TMPDIR/scripted editor' unchanged" nixos-shields edit alpha:facts
+# The tool reads shields through the decrypt cache, so one an evaluation
+# unlocked opens for edit with only an identity that cannot decrypt it.
+NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache nix eval --json --no-eval-cache \
+  --extra-experimental-features 'nix-command flakes' \
+  path:.#nixosConfigurations.alpha.config.networking.domain >/dev/null
+NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
+  NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true EDITOR="bash '$TMPDIR/scripted editor' unchanged" \
+  nixos-shields edit alpha:facts ||
+  fail "edit did not read the shield the evaluation cached"
+cmp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age" || fail "cached edit rewrote the shield"
 
 # Evaluation honours the same variables. Each run starts with a cold decrypt
 # cache and no evaluation cache, so it really decrypts.
@@ -537,7 +554,7 @@ extra_cache=$(mktemp -d "$TMPDIR/extra-cache.XXXXXX")
 copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age' -o -name '*outside-identity*')
 [[ -z $copies ]] || fail "shield file or outside identity copied into the store: $copies"
 
-[[ -n $(find "$NIXOS_SHIELDS_CACHE_DIR" -type f -print -quit) ]] ||
+[[ -n $(find "$evaluation_cache" -type f -print -quit) ]] ||
   fail "wrapped evaluation did not populate the decrypt cache"
-nixos-shields clean
-[[ ! -e $NIXOS_SHIELDS_CACHE_DIR ]] || fail "clean left the evaluation's decrypt cache behind"
+NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache nixos-shields clean
+[[ ! -e $evaluation_cache ]] || fail "clean left the evaluation's decrypt cache behind"

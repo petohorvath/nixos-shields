@@ -2,12 +2,12 @@
 pkgs:
 let
   nix = import ../lib/mk-nix.nix { inherit pkgs; };
-  nixos-shields = pkgs.callPackage ./cli/package.nix { inherit nix; };
+  decrypt = pkgs.callPackage ./decrypt/package.nix { };
+  nixos-shields = pkgs.callPackage ./cli/package.nix { inherit decrypt nix; };
 in
 {
-  inherit nix nixos-shields;
+  inherit decrypt nix nixos-shields;
   nix-plugins = nix.plugins;
   extra-builtins = nix.extraBuiltinsFile;
-  decrypt = pkgs.callPackage ./decrypt/package.nix { };
   default = nixos-shields;
 }

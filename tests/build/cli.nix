@@ -68,7 +68,6 @@ pkgs.runCommand "nixos-shields-cli"
   }
   ''
     export HOME=$TMPDIR/home
-    export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/decrypt-cache
     NIX_REMOTE="local?real=$NIX_STORE&state=$TMPDIR/state"
     export NIX_REMOTE="$NIX_REMOTE&log=$TMPDIR/log"
     mkdir -p "$HOME"
