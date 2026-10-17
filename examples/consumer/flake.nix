@@ -15,8 +15,11 @@
     };
     nixos-shields = {
       url = "github:petohorvath/nixos-shields";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-parts.follows = "flake-parts";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-parts.follows = "flake-parts";
+        treefmt-nix.follows = "";
+      };
     };
   };
 

@@ -2,17 +2,17 @@
 
 `nix flake check` runs every check below. [AGENTS.md](../AGENTS.md#required-checks) lists the commands and CI setup.
 
-The tests follow the devnix-labs test layout: one directory under [`tests/`](../tests) for each test kind, each with an entry point, `default.nix`, that lists its tests by hand. A test file missing from its entry point's list does not run. [`dev/default.nix`](../dev/default.nix) runs the unit and integration suites through nix-unit's flake-parts module, [`tests/default.nix`](../tests/default.nix) names the build tests, and [`dev/checks.nix`](../dev/checks.nix) adds `formatting`, `lint`, and a `package-<name>` check for each package.
+The tests follow the devnix-labs test layout: one directory under [`tests/`](../tests) for each test kind, each with an entry point, `default.nix`, that lists its tests by hand. A test file missing from its entry point's list does not run. [`dev/default.nix`](../dev/default.nix) runs the unit and integration suites through nix-unit's flake-parts module, [`tests/default.nix`](../tests/default.nix) names the build tests, and [`dev/checks.nix`](../dev/checks.nix) adds `lint` and a `package-<name>` check for each package. treefmt-nix's flake-parts module adds the `treefmt` check.
 
-| Check | Covers |
-| --- | --- |
-| `nix-unit` | The nix-unit suites: those under `tests/unit` evaluate the kit's code alone, and those under `tests/integration` evaluate it inside flake-parts |
-| `build-cli` | The packaged command-line tool against the example consumer |
-| `build-decrypt-cache` | The decrypt script and its decrypt cache |
-| `build-wrapped-nix` | The wrapped Nix inside the build sandbox |
-| `formatting` | Whether the formatter would change a file |
-| `lint` | statix, deadnix, shellcheck, and actionlint |
-| `package-<name>` | Whether each package of the `packages` output except `default` builds: `decrypt`, `extra-builtins`, `nix`, `nix-plugins`, and `nixos-shields` |
+| Check                 | Covers                                                                                                                                          |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nix-unit`            | The nix-unit suites: those under `tests/unit` evaluate the kit's code alone, and those under `tests/integration` evaluate it inside flake-parts |
+| `build-cli`           | The packaged command-line tool against the example consumer                                                                                     |
+| `build-decrypt-cache` | The decrypt script and its decrypt cache                                                                                                        |
+| `build-wrapped-nix`   | The wrapped Nix inside the build sandbox                                                                                                        |
+| `treefmt`             | Whether `nix fmt` would change a file or report a finding                                                                                       |
+| `lint`                | statix                                                                                                                                          |
+| `package-<name>`      | Whether each package of the `packages` output except `default` builds: `decrypt`, `extra-builtins`, `nix`, `nix-plugins`, and `nixos-shields`   |
 
 ## `nix-unit`
 
@@ -69,6 +69,8 @@ The check drives the decrypt script directly with a throwaway master identity an
 
 The check verifies that the wrapped Nix's multi-call binaries keep their identity and load the builtin. It then evaluates `lib.importShield` on a fixture encrypted to an identity generated at check time, both with the default extra-builtins file and through a consumer's combined file supplied to `lib.mkNix`. With the default file, it also gives the identity as an attribute set entry whose `identity` is a path or an absolute string, calls the builtin directly with an absolute string identity and with a relative one, which fails, and confirms that neither the fixture nor the identity is copied into the store. It doubles as the ABI canary: it rebuilds whenever the Nix or the plugin changes.
 
-## `formatting` and `lint`
+## `treefmt` and `lint`
 
-Both checks run against a copy of the source. `formatting` fails when `nix fmt` would change a file.
+`treefmt` runs every program that `nix fmt` runs, as configured in `dev/treefmt.nix`, against a copy of the source: nixfmt, deadnix, prettier, shfmt, shellcheck, and actionlint. It fails when a program changes a file or reports a finding it cannot fix, and its build log shows the diff that `nix fmt` would make. `nix fmt` applies deadnix's and the formatters' changes; review the diff before committing. Shell scripts without a shebang start with `# shellcheck shell=bash`, since the program has no shell option.
+
+`lint` runs `statix check` from the source root. statix runs outside treefmt, because treefmt-nix's statix program runs `statix fix`, which passes the lints that statix cannot fix.

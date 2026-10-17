@@ -24,10 +24,10 @@ Before exploring or changing code, read the glossary in [GLOSSARY.md](GLOSSARY.m
 
 ## Required checks
 
-The development shell, loaded by `nix develop` or by [nix-direnv](https://github.com/nix-community/nix-direnv) through the tracked `.envrc`, provides the kit's wrapped Nix, nix-unit, the formatter, the linters, and rage. Development outputs live in the `dev` flake-parts partition, so consumers never evaluate them.
+The development shell, loaded by `nix develop` or by [nix-direnv](https://github.com/nix-community/nix-direnv) through the tracked `.envrc`, provides the kit's wrapped Nix, nix-unit, treefmt with every formatter and linter it runs, statix, and rage. Development outputs live in the `dev` flake-parts partition, so consumers never evaluate them.
 
 ```sh
-nix fmt                                                           # fix a failing `formatting` check
+nix fmt                                                           # fix a failing `treefmt` check
 nix-unit --flake .#tests.systems.x86_64-linux                     # the nix-unit suites, for a fast loop
 nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module   # one suite
 nix-unit --flake .#tests.systems.x86_64-linux.unit.nixos.module --attr testDefaults   # one test

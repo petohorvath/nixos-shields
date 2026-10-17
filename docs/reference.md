@@ -6,19 +6,19 @@ The flake's public interface: its outputs, library functions, module options, an
 
 The table lists the consumer-facing outputs. The `checks`, `devShells`, `formatter`, and `tests` outputs come from the `dev` flake-parts partition and serve development only.
 
-| Output | Content |
-| --- | --- |
-| `lib.importShield` | Decrypts one shield file |
-| `lib.mkNix` | Builds a wrapped Nix |
-| `lib.mkExtraBuiltinsFile` | Builds the kit's extra-builtins file |
-| `lib.mkManifest` | Builds the manifest for plain flakes |
-| `nixosModules.default` | The `age.shields` NixOS module |
-| `flakeModules.default` | The flake-parts module |
-| `packages.<system>.default` | The `nixos-shields` command-line tool, also `packages.<system>.nixos-shields` |
-| `packages.<system>.nix` | The wrapped Nix with default arguments |
-| `packages.<system>.nix-plugins` | The nix-plugins build the wrapped Nix loads |
-| `packages.<system>.extra-builtins` | The kit's extra-builtins file |
-| `packages.<system>.decrypt` | The decrypt script behind the builtin |
+| Output                             | Content                                                                       |
+| ---------------------------------- | ----------------------------------------------------------------------------- |
+| `lib.importShield`                 | Decrypts one shield file                                                      |
+| `lib.mkNix`                        | Builds a wrapped Nix                                                          |
+| `lib.mkExtraBuiltinsFile`          | Builds the kit's extra-builtins file                                          |
+| `lib.mkManifest`                   | Builds the manifest for plain flakes                                          |
+| `nixosModules.default`             | The `age.shields` NixOS module                                                |
+| `flakeModules.default`             | The flake-parts module                                                        |
+| `packages.<system>.default`        | The `nixos-shields` command-line tool, also `packages.<system>.nixos-shields` |
+| `packages.<system>.nix`            | The wrapped Nix with default arguments                                        |
+| `packages.<system>.nix-plugins`    | The nix-plugins build the wrapped Nix loads                                   |
+| `packages.<system>.extra-builtins` | The kit's extra-builtins file                                                 |
+| `packages.<system>.decrypt`        | The decrypt script behind the builtin                                         |
 
 ## Library functions
 
@@ -34,11 +34,11 @@ nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/b
 
 `mkNix` returns a Nix binary set whose every invocation loads the shield builtin. Each binary is wrapped individually with `NIX_CONFIG` set for that process only and argv[0] preserved, so `nix-store`, `nix-build`, and the other multi-call binaries keep their behaviour and nothing is exported into the caller's shell.
 
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `pkgs` | required | The package set to build with |
-| `nix` | `pkgs.nixVersions.nix_2_34` | The Nix package to wrap; a concrete series, never `pkgs.nix`, because the plugin must match its ABI |
-| `extraConfig` | `""` | Extra `nix.conf` lines, such as `accept-flake-config = true`; the kit sets no such policy itself |
+| Argument            | Default                                     | Meaning                                                                                             |
+| ------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `pkgs`              | required                                    | The package set to build with                                                                       |
+| `nix`               | `pkgs.nixVersions.nix_2_34`                 | The Nix package to wrap; a concrete series, never `pkgs.nix`, because the plugin must match its ABI |
+| `extraConfig`       | `""`                                        | Extra `nix.conf` lines, such as `accept-flake-config = true`; the kit sets no such policy itself    |
 | `extraBuiltinsFile` | `lib.mkExtraBuiltinsFile { inherit pkgs; }` | The extra-builtins file to load; a replacement must keep `importShield` by importing the kit's file |
 
 The result's `passthru` holds `extraBuiltinsFile`, `nix`, and `plugins`.
@@ -51,10 +51,10 @@ The result's `passthru` holds `extraBuiltinsFile`, `nix`, and `plugins`.
 
 `mkManifest` builds the manifest for a plain flake, without a flake-parts dependency. It reads only file declarations, so building it never decrypts a shield.
 
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `self` | required | The consumer's flake, whose root anchors every location |
-| `configurations` | `{ }` | Evaluated configurations by name; each contributes its `config.age.shields.files`, `masterIdentities`, and `extraEncryptionPubkeys` |
+| Argument         | Default  | Meaning                                                                                                                             |
+| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `self`           | required | The consumer's flake, whose root anchors every location                                                                             |
+| `configurations` | `{ }`    | Evaluated configurations by name; each contributes its `config.age.shields.files`, `masterIdentities`, and `extraEncryptionPubkeys` |
 
 ```nix
 shields = nixos-shields.lib.mkManifest {
@@ -67,13 +67,13 @@ shields = nixos-shields.lib.mkManifest {
 
 `nixosModules.default` exposes a configuration's shields under `age.shields`. The module knows nothing about configuration names or directory layout: the consumer's wiring decides which file each configuration reads.
 
-| Option | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `age.shields.masterIdentities` | list of [master identity entries](#master-identity-entries) | `[ ]` | Age identities, any one of which can decrypt every shield of the configuration, tried in order. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to. |
-| `age.shields.extraEncryptionPubkeys` | list of public key strings or paths | `[ ]` | [Extra encryption pubkeys](#extra-encryption-pubkeys) that every shield is also encrypted to and that are never used to decrypt. |
-| `age.shields.dir` | path | none | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it. |
-| `age.shields.files` | attribute set of paths | `{ }` | Shield files by name. A file that does not exist fails evaluation with a message naming it. Several configurations can declare the same file, which then has an address in each. |
-| `age.shields.values` | attribute set, read-only | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it. |
+| Option                               | Type                                                        | Default | Meaning                                                                                                                                                                                                         |
+| ------------------------------------ | ----------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `age.shields.masterIdentities`       | list of [master identity entries](#master-identity-entries) | `[ ]`   | Age identities, any one of which can decrypt every shield of the configuration, tried in order. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to. |
+| `age.shields.extraEncryptionPubkeys` | list of public key strings or paths                         | `[ ]`   | [Extra encryption pubkeys](#extra-encryption-pubkeys) that every shield is also encrypted to and that are never used to decrypt.                                                                                |
+| `age.shields.dir`                    | path                                                        | none    | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it.                                                                            |
+| `age.shields.files`                  | attribute set of paths                                      | `{ }`   | Shield files by name. A file that does not exist fails evaluation with a message naming it. Several configurations can declare the same file, which then has an address in each.                                |
+| `age.shields.values`                 | attribute set, read-only                                    | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it.                                                                                                     |
 
 Configurations share `dir` and `masterIdentities` through a module of the consumer's own, imported by each of them. A flake that also uses agenix-rekey can assign `age.shields.masterIdentities = config.age.rekey.masterIdentities` there, since both options take the same entries. Outside a configuration, its values are readable as `nixosConfigurations.<name>.config.age.shields.values`, for example to give a deploy-rs node its hostname.
 
@@ -81,11 +81,11 @@ Configurations share `dir` and `masterIdentities` through a module of the consum
 
 An entry of `age.shields.masterIdentities` uses the names of agenix-rekey's `age.rekey.masterIdentities`:
 
-| Form | Meaning |
-| --- | --- |
-| A path, such as `./master-identities/yubikey-1.txt` | The identity file alone |
-| An absolute path string, such as `"/home/alice/.config/age/shields.txt"` | The identity file alone, usually outside the flake root |
-| `{ identity; pubkey; }` | The identity file, a path or an absolute path string, paired with its public key, a string; `pubkey` defaults to `null` |
+| Form                                                                     | Meaning                                                                                                                 |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| A path, such as `./master-identities/yubikey-1.txt`                      | The identity file alone                                                                                                 |
+| An absolute path string, such as `"/home/alice/.config/age/shields.txt"` | The identity file alone, usually outside the flake root                                                                 |
+| `{ identity; pubkey; }`                                                  | The identity file, a path or an absolute path string, paired with its public key, a string; `pubkey` defaults to `null` |
 
 The option reads back every entry as an attribute set, a path or a string becoming `{ identity = <path or string>; pubkey = null; }`. Decryption uses only `identity`. When `pubkey` is set, `nixos-shields edit` and `rekey` encrypt to it instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt:
 
@@ -109,11 +109,11 @@ A string that is not an absolute path fails evaluation.
 
 `age.shields.extraEncryptionPubkeys` accepts the value of agenix-rekey's `age.rekey.extraEncryptionPubkeys`. `nixos-shields edit` and `rekey` encrypt every shield to them as well as to the master identities, so an offline backup key or a team's keys can open every shield. Neither evaluation nor the tool ever decrypts with them, so they are never prompted for.
 
-| Form | Meaning |
-| --- | --- |
-| A string that is not an absolute path, such as `"age1..."` or `"ssh-ed25519 AAAA..."` | A public key |
-| A path, such as `./recipients/team.txt` | A recipients file, one public key per line |
-| An absolute path string, such as `"/home/alice/.config/age/backup.pub"` | A recipients file, usually outside the flake root |
+| Form                                                                                  | Meaning                                           |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| A string that is not an absolute path, such as `"age1..."` or `"ssh-ed25519 AAAA..."` | A public key                                      |
+| A path, such as `./recipients/team.txt`                                               | A recipients file, one public key per line        |
+| An absolute path string, such as `"/home/alice/.config/age/backup.pub"`               | A recipients file, usually outside the flake root |
 
 ```nix
 age.shields.extraEncryptionPubkeys = [
@@ -128,8 +128,8 @@ A recipients file follows the same rule as a master identity: the manifest keeps
 
 `flakeModules.default` publishes the manifest as the `shields` flake output. It uses the libraries supplied by the consumer's flake-parts and introduces no flake input. Configurations import `nixosModules.default` themselves.
 
-| Option | Type | Default | Meaning |
-| --- | --- | --- | --- |
+| Option                   | Type                                      | Default                            | Meaning                                                                                                                                                            |
+| ------------------------ | ----------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `shields.configurations` | attribute set of evaluated configurations | `config.flake.nixosConfigurations` | Configurations whose shield files, master identities, and extra encryption pubkeys enter the manifest. Override it when the configurations live in another output. |
 
 ## Manifest
@@ -148,10 +148,16 @@ For the [example consumer](../examples/consumer), `nix eval --json .#shields` re
 {
   "configurations": {
     "alpha": {
-      "files": { "facts": "shields/alpha.nix.age", "shared": "shields/shared.nix.age" }
+      "files": {
+        "facts": "shields/alpha.nix.age",
+        "shared": "shields/shared.nix.age"
+      }
     },
     "beta": {
-      "files": { "facts": "shields/beta.nix.age", "shared": "shields/shared.nix.age" }
+      "files": {
+        "facts": "shields/beta.nix.age",
+        "shared": "shields/shared.nix.age"
+      }
     }
   },
   "extraEncryptionPubkeys": [],

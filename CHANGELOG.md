@@ -5,6 +5,7 @@
 ### Added
 
 - `packages.default`, the `nixos-shields` command-line tool.
+- The `treefmt-nix` input, which only the kit's development checks use. Drop it with `inputs.nixos-shields.inputs.treefmt-nix.follows = "";`.
 - `flakeModules.default`, the flake-parts module.
 - The `tests` output, the nix-unit suites, which serves development only, and the `nix-unit` input that runs them. The input's `nixpkgs` follows this flake's, so consumers lock no second nixpkgs; a consumer can drop the input with `inputs.nixos-shields.inputs.nix-unit.follows = "";`.
 - `age.shields.masterIdentities` entries can pair an identity with its public key as `{ identity; pubkey; }`, the form of agenix-rekey's `age.rekey.masterIdentities`, so assigning that option's value works. `nixos-shields edit` and `rekey` encrypt to a paired public key instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt. `lib.importShield` accepts the same entries.
@@ -23,7 +24,7 @@
 - Each entry of the manifest's `masterIdentities` is an object with `identity`, the location, and `pubkey`, a public key or `null`, instead of a location string. Two configurations pairing one identity with different public keys fail evaluation.
 - `nixos-shields list` headings name each configuration as `Configuration <name>:`.
 - Unit tests run under nix-unit and can be run directly from the development shell.
-- Formatting and lint are flake checks, run by `nix flake check` and CI.
+- Formatting and lint are the flake checks `treefmt` and `lint`, run by `nix flake check` and CI. `nix fmt` runs treefmt-nix with nixfmt, deadnix, prettier, shfmt, shellcheck, and actionlint instead of nixfmt-tree.
 - The tests follow the devnix-labs test layout. The nix-unit suites import the kit from source and run as the `nix-unit` check, through nix-unit's flake-parts module, instead of the `tests` check; a new `flake-outputs` suite checks that the flake exposes the same code. The `cli`, `decrypt-cache`, and `integration` checks are renamed `build-cli`, `build-decrypt-cache`, and `build-wrapped-nix`, and a `package-<name>` check builds each package. Run the suites directly with `nix-unit --flake .#tests.systems.<system>`.
 - The `nixpkgs` input tracks `nixos-26.05` instead of `nixos-unstable`, locked to the nixos-project-policy v0.5.1 stable pin; consumers that do not make it follow their own nixpkgs get the stable release. x86_64-darwin stays undeclared.
 - CI calls the shared project policy `v0.6` workflow instead of its own. It runs on x86_64-linux and aarch64-linux and tests the locked nixpkgs and the policy's stable and unstable pins; the required statuses become `Policy / Check (<system>)` and `Policy / Tests (locked|stable|unstable, <system>)`. There are no VM tests, so no `Policy / VM tests (locked|stable|unstable, <system>)` status is required.
