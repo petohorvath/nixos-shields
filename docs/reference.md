@@ -18,7 +18,7 @@ The table lists the consumer-facing outputs. The `checks`, `devShells`, `formatt
 | `packages.<system>.nix`            | The wrapped Nix with default arguments                                        |
 | `packages.<system>.nix-plugins`    | The nix-plugins build the wrapped Nix loads                                   |
 | `packages.<system>.extra-builtins` | The kit's extra-builtins file                                                 |
-| `packages.<system>.decrypt`        | The decrypt script behind the builtin                                         |
+| `packages.<system>.decrypt`        | The decrypt script behind the builtin and the command-line tool               |
 
 ## Library functions
 
@@ -197,12 +197,16 @@ A [compatibility patch](../packages/nix-plugins/nix-2.34.patch) is carried in th
 
 ## Primary identity
 
-`NIXOS_SHIELDS_PRIMARY_IDENTITY` names an identity file that the builtin tries before the master identities it is given; with `NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true`, the builtin decrypts with that file alone. The file is relative to the current directory of the Nix process, or an absolute path, and need not be a declared master identity. Setting `_ONLY` without a primary identity fails decryption. The [command-line tool](cli.md#primary-identity) honours the same variables.
+`NIXOS_SHIELDS_PRIMARY_IDENTITY` names an identity file that the builtin tries before the master identities it is given; with `NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true`, the builtin decrypts with that file alone. The file is relative to the current directory of the Nix process, or an absolute path, and need not be a declared master identity. Setting `_ONLY` without a primary identity fails decryption. The [command-line tool](cli.md#primary-identity) decrypts through the same script, so it honours the same variables.
 
 The variables do not change [decrypt cache](#decrypt-cache) keys. They take effect only when a shield is decrypted, not when its entry is already cached, so run `nixos-shields clean` to check that a primary identity alone can open the shields.
 
 ## Decrypt cache
 
-Each decrypt cache entry is keyed by the shield file's content hash and base name, so an unchanged file is not decrypted again, even when a copy with the same base name lives elsewhere, and a changed file gets a new entry that coexists with the old one until the decrypt cache is removed. The decrypt cache directory is created with mode 0700 and refused when another user owns it. Decryption writes a partial file beside the entry and moves it into place, so an interrupted decryption never leaves a truncated entry.
+Each decrypt cache entry is keyed by the shield file's content hash and base name, so an unchanged file is not decrypted again, even when a copy with the same base name lives elsewhere, and a changed file gets a new entry that coexists with the old one until the decrypt cache is removed. The decrypt cache directory is created with mode 0700 and refused when another user owns it. Decryption writes a partial file beside the entry and moves it into place, so an interrupted decryption never leaves a truncated entry; a failed one removes the partial file.
+
+Evaluation and `nixos-shields edit` and `rekey` read shields through the decrypt cache, so a shield that one of them unlocked is not decrypted again by another. Saving a shield adds no entry, so the next evaluation decrypts the new file and shows whether a master identity on the machine opens it.
 
 The directory defaults to `/var/tmp/nixos-shields-<uid>`, and `NIXOS_SHIELDS_CACHE_DIR` overrides it.
+
+`nixos-shields clean` removes the decrypt cache by calling `nixos-shields-decrypt --clean [<protected-directory>...]` from `packages.<system>.decrypt`. It refuses a directory that is a symlink, is not owned by the current user, or lies in `/nix/store`, and one containing `/`, the home directory, the current directory, or a protected directory given to it. `nixos-shields clean` protects the selected flake.

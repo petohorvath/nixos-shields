@@ -13,12 +13,14 @@
 - When no configuration pairs a master identity with a public key, `nixos-shields edit` and `rekey` read one from its YubiKey or FIDO2 identity stub, inside or outside the flake root: the key in the stub's `Recipient:` or `public key:` comment, following agenix-rekey's rules of exactly one plugin identity line and exactly one key. They then encrypt to the key without touching the hardware. Any other file, including a stub with no key or several, is presented as an identity, and a declared `pubkey` wins over the stub's. The manifest reads no identity file, so its `pubkey` stays `null` for such an identity.
 - `age.shields.extraEncryptionPubkeys` lists extra encryption pubkeys, such as an offline backup key, that every shield is encrypted to and that are never used to decrypt, as with agenix-rekey's `age.rekey.extraEncryptionPubkeys`. An entry is a public key string, or a recipients file given as a path or an absolute path string, inside or outside the flake root. The manifest gains an `extraEncryptionPubkeys` field that combines every configuration's entries without duplicates, each as `{ pubkey }` or `{ recipientsFile }`, and `nixos-shields edit` and `rekey` encrypt every shield to them as well as to the master identities.
 - `NIXOS_SHIELDS_PRIMARY_IDENTITY` names an identity file tried before the master identities, and `NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true` restricts decryption to it, in the command-line tool and in evaluation through the wrapped Nix.
+- `nixos-shields-decrypt --clean`, from `packages.<system>.decrypt`, removes the decrypt cache with the refusals of `nixos-shields clean`, which calls it, and accepts further directories to protect.
 - Every `nixos-shields` command that reads the manifest warns on stderr about each master identity inside the flake root that holds an unencrypted private key, an `AGE-SECRET-KEY-` line or an OpenSSH private key whose cipher is `none`. The warning names the file, suggests a YubiKey or FIDO2 identity stub, a passphrase-protected identity, or a path outside the flake, and does not fail the command. The example consumer's throwaway identity triggers it.
 
 ### Changed
 
 - Decryption, in `nixos-shields` and in evaluation through the wrapped Nix, skips master identity files that do not exist, so an identity paired with its public key, such as a teammate's, need not be on disk; a misspelled one is skipped the same way, without a message. Encryption still requires the file of an identity without a public key.
 - `nixos-shields rekey` without `--identity` decrypts with every master identity in manifest order, as `edit` and evaluation do, instead of only the first.
+- `nixos-shields edit` and `rekey` read shields through the decrypt cache, as evaluation does, so a shield that evaluation or an earlier command unlocked is not decrypted again and a hardware identity is not prompted again. Saving adds no entry, so the next evaluation still checks that the new shield file opens. `rekey --identity` decrypts only the shields without an entry with the given identity. Choosing identities and removing the decrypt cache move into the decrypt script, `packages.<system>.decrypt`.
 - Every shield belongs to a configuration, and every configuration declares its own master identities, as with agenix-rekey. The manifest's `masterIdentities`, from `lib.mkManifest` and `flakeModules.default`, combines every configuration's `age.shields.masterIdentities`, each identity once, and `nixos-shields edit` and `rekey` encrypt every shield to all of them. Share master identities through a NixOS module imported by each configuration, share data by declaring one shield file in several configurations, and read a configuration's values from outside it through `nixosConfigurations.<name>.config.age.shields.values`.
 - The option `age.shields.masterIdentities` reads back each entry as `{ identity; pubkey; }`, with `pubkey = null` for an entry given as a path.
 - Each entry of the manifest's `masterIdentities` is an object with `identity`, the location, and `pubkey`, a public key or `null`, instead of a location string. Two configurations pairing one identity with different public keys fail evaluation.
@@ -39,6 +41,10 @@
 - The manifest's top-level `files` field.
 - Bare `<name>` addresses in `nixos-shields`; address every shield as `<configuration>:<name>`.
 - The flake-scoped group of `nixos-shields list`, in its text output and the `files` field of its JSON output.
+
+### Fixed
+
+- A failed decryption no longer leaves a partial file, which may hold plaintext, in the decrypt cache.
 
 ## 0.1.0 - 2026-09-14
 

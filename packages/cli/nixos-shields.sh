@@ -78,29 +78,10 @@ if [[ $command_name != clean || $flake_given == true ]]; then
   [[ -f $flake_dir/flake.nix ]] || die "no flake.nix in $flake_dir"
 fi
 
+# The decrypt script owns the decrypt cache; a selected flake is protected
+# beside the directories it always protects.
 if [[ $command_name == clean ]]; then
-  cache_dir=${NIXOS_SHIELDS_CACHE_DIR:-/var/tmp/nixos-shields-$UID}
-  [[ ! -L $cache_dir ]] || die "refusing to remove a decrypt cache symlink: $cache_dir"
-  if [[ ! -e $cache_dir ]]; then
-    echo "Decrypt cache already empty: $cache_dir"
-    exit 0
-  fi
-  [[ -d $cache_dir && -O $cache_dir ]] ||
-    die "refusing to remove a decrypt cache that is not a directory owned by the current user: $cache_dir"
-  cache_dir=$(realpath -e -- "$cache_dir")
-  case $cache_dir in
-  /nix/store | /nix/store/*) die "refusing to remove a decrypt cache in /nix/store" ;;
-  esac
-  # An accidental override such as /, ~ or . must not erase unrelated files.
-  for protected in / "${HOME:-}" "$(pwd -P)" "$flake_dir"; do
-    [[ -n $protected ]] || continue
-    protected=$(realpath -m -- "$protected")
-    [[ $protected != "$cache_dir" && $protected != "$cache_dir/"* ]] ||
-      die "refusing to remove a decrypt cache containing $protected: $cache_dir"
-  done
-  rm -rf -- "$cache_dir"
-  echo "Removed decrypt cache: $cache_dir"
-  exit 0
+  exec nixos-shields-decrypt --clean ${flake_dir:+"$flake_dir"}
 fi
 
 # Resolve against the checkout, including symlinks, before reading or writing.
@@ -247,9 +228,9 @@ stub_pubkey() {
 # Encryption targets an identity's public key when the manifest pairs
 # one, or else when its file is a YubiKey or FIDO2 stub, so a passphrase
 # or a hardware key is not needed, and presents the identity file
-# otherwise. Decryption presents every identity file on disk; one paired
-# with a public key, such as a teammate's, may be absent.
-identity_args=()
+# otherwise. Decryption hands every identity to the decrypt script, which
+# skips one that is absent, such as a teammate's paired with a public key.
+decryption_identities=()
 recipient_args=()
 while IFS= read -r entry; do
   identity=$(resolve_key_file "$(jq -r .identity <<<"$entry")") || exit
@@ -263,7 +244,7 @@ while IFS= read -r entry; do
   else
     recipient_args+=(--identity "$identity")
   fi
-  [[ ! -f $identity ]] || identity_args+=(--identity "$identity")
+  decryption_identities+=("$identity")
 done < <(jq -c '.masterIdentities[]' <<<"$manifest")
 [[ ${#recipient_args[@]} -gt 0 ]] || die "no master identity declared"
 
@@ -279,25 +260,13 @@ while IFS= read -r entry; do
   fi
 done < <(jq -c '.extraEncryptionPubkeys[]' <<<"$manifest")
 
-# The primary identity, relative to the caller, is tried first or alone.
-primary_identity=${NIXOS_SHIELDS_PRIMARY_IDENTITY:-}
-decryption_args=()
-if [[ -n $primary_identity ]]; then
-  [[ -f $primary_identity ]] || die "primary identity does not exist: $primary_identity"
-  decryption_args+=(--identity "$primary_identity")
-fi
-if [[ ${NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY:-} == true ]]; then
-  [[ -n $primary_identity ]] ||
-    die "NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY"
-else
-  decryption_args+=("${identity_args[@]}")
-fi
-
 if [[ $command_name == rekey ]]; then
   if [[ -n $rekey_identity ]]; then
-    # An explicit identity is relative to the caller, not the flake directory.
+    # An explicit identity is relative to the caller, not the flake
+    # directory, and replaces any primary identity as the only one.
     [[ -f $rekey_identity ]] || die "decryption identity does not exist: $rekey_identity"
-    decryption_args=(--identity "$rekey_identity")
+    export NIXOS_SHIELDS_PRIMARY_IDENTITY=$rekey_identity
+    export NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true
   fi
   files=()
   declare -A seen_files=()
@@ -328,9 +297,13 @@ case $(realpath -- "$workdir") in
 esac
 plaintext=$workdir/shield.nix
 
+# Read through the decrypt cache, as evaluation does, so a shield already
+# unlocked is not decrypted again. The editor works on a copy, never on
+# the decrypt cache entry.
 decrypt_file() {
-  [[ ${#decryption_args[@]} -gt 0 ]] || die "no master identity file exists to decrypt $1"
-  rage --decrypt "${decryption_args[@]}" --output "$plaintext" "$1"
+  local entry
+  entry=$(nixos-shields-decrypt --print-out-path "$1" "${decryption_identities[@]}") || exit
+  cp -- "$entry" "$plaintext"
 }
 
 # Encrypt beside the destination, then atomically replace it. A failed

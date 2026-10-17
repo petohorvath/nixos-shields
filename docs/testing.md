@@ -52,18 +52,31 @@ The check copies the [example consumer](../examples/consumer) into a writable di
 - encryption to all master identities, including one that only `alpha` declares, and rotation to a second identity verified through the wrapped Nix
 - a passphrase-protected identity paired with its public key in the manifest, which `edit` and `rekey` encrypt to without a prompt and whose key then opens every shield
 - `rekey` decrypting with every master identity when the first cannot open the shields
-- the primary identity variables in `edit` and in evaluation through the wrapped Nix
+- a primary identity relative to the caller decrypting alone in `edit`, `rekey --identity` decrypting with the given identity alone, and the primary identity variables in evaluation through the wrapped Nix
+- `edit` reading a shield from the decrypt cache that an evaluation filled, with only an identity at hand that cannot open it
 - a master identity outside the flake root, kept absolute in the manifest, working for `edit`, `rekey` from another directory, and evaluation through the wrapped Nix, beside a teammate's identity paired with its public key whose file does not exist
 - public keys read at encryption time from FIDO2 stubs inside and outside the flake root whose comments hold X25519 keys, shown by those keys opening the shield while no age plugin is installed, with the manifest's `pubkey` left `null`; a declared `pubkey` winning over a stub's comment; FIDO2 stubs with no key or several keys presented as identities, which fails without the plugin; and a stand-in `age-plugin-yubikey` showing that rage receives a YubiKey stub's recipient, or the stub's identity line when it has no recipient
 - a binary passphrase-protected identity inside the flake root without a `pubkey`, which leaves `list` and the manifest working and which `edit` presents through a scripted pinentry without noise about the binary file
 - the unencrypted private key warning for the example's throwaway identity and an unencrypted OpenSSH key, with the command still succeeding, and none for an identity outside the flake root, a YubiKey stub, a passphrase-protected age identity, or a passphrase-protected OpenSSH key
 - an extra encryption pubkey given as a public key by `alpha` and one given through a recipients file by `beta`, combined in the manifest, each opening the shield `edit` writes and every shield after `rekey`, while decryption in `edit`, `rekey`, and evaluation works without them
 - no shield file and no outside identity copied into the store
-- decrypt cache removal
+- decrypt cache removal outside a flake, refusal of a decrypt cache containing the selected flake, and removal of the cache an evaluation filled
+
+Every run of the tool that names no decrypt cache gets a cold one of its own, so a decryption the check asserts on is never served by an entry left behind earlier. Evaluation shares one decrypt cache.
 
 ## `build-decrypt-cache`
 
-The check drives the decrypt script directly with a throwaway master identity and a counting wrapper in place of `rage`. It asserts that a miss decrypts, that a hit does not, including for a copy of the same file elsewhere, that a changed file gets its own entry, that `--print-out-path` names the entry, and that `NIXOS_SHIELDS_CACHE_DIR` moves the directory.
+The check drives the decrypt script directly with a throwaway master identity and a counting wrapper in place of `rage`. It covers:
+
+- a miss decrypting and a hit not, including for a copy of the same file elsewhere
+- a changed file getting its own entry beside the old one
+- `--print-out-path` naming the entry, and `NIXOS_SHIELDS_CACHE_DIR` moving the directory
+- absent identity files skipped, and failing when none exists
+- a primary identity followed by the given ones, and tried before them, shown by a stand-in `age-plugin-yubikey` that a YubiKey stub given first starts and that a primary identity able to decrypt leaves idle
+- `_ONLY` decrypting with a primary identity relative to the caller alone, and the failures of `_ONLY` without a primary identity and of a missing primary identity
+- a hit ignoring the primary identity variables
+- a failed decryption leaving no partial file
+- `--clean` removing the decrypt cache and accepting one already removed, and refusing a symlink and a directory containing the home directory, the current directory, or a directory given to it, each case tripping only its own refusal
 
 ## `build-wrapped-nix`
 

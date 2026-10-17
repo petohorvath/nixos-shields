@@ -41,7 +41,7 @@ The name by which a shield is referred to on the command line: `<configuration>:
 _Avoid_: Path, identifier, id
 
 **Decrypt cache**:
-The per-user directory holding decrypted shield contents so that an unlocked shield is not decrypted, and a hardware identity not prompted, again on every evaluation. Holds plaintext.
+The per-user directory holding decrypted shield contents so that an unlocked shield is not decrypted, and a hardware identity not prompted, again on every evaluation or edit. Evaluation and the command-line tool both read shields through it. Holds plaintext.
 _Avoid_: Cache, tmp, temp files
 
 **Wrapped nix**:

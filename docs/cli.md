@@ -71,11 +71,12 @@ EDITOR=vim nixos-shields edit beta:shared
 EDITOR='code --wait' nixos-shields edit alpha:facts
 ```
 
-`edit` decrypts the shield into a private temporary directory outside the checkout, runs `$EDITOR` as a Bash command with the plaintext file appended, and removes the directory on exit. Set `EDITOR` to a command that waits until editing finishes. The temporary directory follows `TMPDIR`; the tool refuses one inside the checkout.
+`edit` copies the shield's plaintext from the [decrypt cache](reference.md#decrypt-cache), decrypting it there first when it has no entry, into a private temporary directory outside the checkout. It then runs `$EDITOR` as a Bash command with the plaintext file appended, and removes the directory on exit. Set `EDITOR` to a command that waits until editing finishes. The temporary directory follows `TMPDIR`; the tool refuses one inside the checkout.
 
 - An unchanged edit leaves the shield file byte-identical.
-- An existing shield is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity).
+- An existing shield that evaluation or an earlier command already unlocked is read from its decrypt cache entry, so a hardware identity is not prompted again. One without an entry is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity).
 - A changed edit encrypts to the master identities of every configuration, as the manifest combines them, and replaces the shield file only after encryption succeeds. It encrypts to an identity's public key when the manifest pairs one or [reads one from its stub](#public-keys-from-identity-stubs), and presents the identity file otherwise. It also encrypts to every extra encryption pubkey.
+- Saving adds no decrypt cache entry, so the next evaluation decrypts the new shield file and fails at once when no master identity on the machine opens it.
 - A declared file that does not exist starts from `{}` and is created even when the editor leaves that expression unchanged.
 - A failed editor, or one that removes the plaintext file, leaves the shield file untouched.
 
@@ -86,7 +87,9 @@ nixos-shields rekey
 nixos-shields rekey --identity /path/to/previous-identity.txt
 ```
 
-`rekey` decrypts every declared shield and encrypts it to every current master identity and extra encryption pubkey, as `edit` does: to an identity's public key when the manifest pairs one or its stub holds one, and to the identity file otherwise. Without `--identity`, it decrypts with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so it works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, it decrypts with that identity alone and ignores the primary identity. Every declared shield file must exist.
+`rekey` reads every declared shield through the decrypt cache, as `edit` does, and encrypts it to every current master identity and extra encryption pubkey: to an identity's public key when the manifest pairs one or its stub holds one, and to the identity file otherwise. Every declared shield file must exist.
+
+A shield without a decrypt cache entry is decrypted with every master identity in the manifest, in order, after any [primary identity](#primary-identity), so `rekey` works when the first declared identity is not at hand. With `--identity`, a file relative to the current directory or an absolute path, such a shield is decrypted with that identity alone, ignoring the primary identity. A cached shield needs no identity, so run `nixos-shields clean` first to check that the given identity alone opens every shield.
 
 To rotate master identities:
 
@@ -105,7 +108,7 @@ NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
   nixos-shields edit alpha:facts
 ```
 
-The variables affect decryption in `edit` and in `rekey` without `--identity`, never encryption. Evaluation through the wrapped Nix honours them too, as the [reference](reference.md#primary-identity) describes.
+The variables affect decryption in `edit` and in `rekey` without `--identity`, never encryption, and only for a shield without a decrypt cache entry. Evaluation through the wrapped Nix honours them too, as the [reference](reference.md#primary-identity) describes.
 
 ## `clean`
 
@@ -113,4 +116,4 @@ The variables affect decryption in `edit` and in `rekey` without `--identity`, n
 nixos-shields clean
 ```
 
-`clean` removes the current user's [decrypt cache](reference.md#decrypt-cache), honouring `NIXOS_SHIELDS_CACHE_DIR`. It works outside a flake and does not evaluate a manifest. It refuses a decrypt cache directory that is a symlink, is not owned by the current user, lies in `/nix/store`, or contains `/`, the home directory, the current directory, or the selected flake.
+`clean` removes the current user's [decrypt cache](reference.md#decrypt-cache), honouring `NIXOS_SHIELDS_CACHE_DIR`, through the decrypt script's `nixos-shields-decrypt --clean`, so its refusals start with `nixos-shields-decrypt:`. It works outside a flake and does not evaluate a manifest. It refuses a decrypt cache directory that is a symlink, is not owned by the current user, lies in `/nix/store`, or contains `/`, the home directory, the current directory, or the selected flake.
