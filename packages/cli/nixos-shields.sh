@@ -1,4 +1,7 @@
-die() { echo "nixos-shields: $*" >&2; exit 1; }
+die() {
+  echo "nixos-shields: $*" >&2
+  exit 1
+}
 
 usage() {
   cat <<'USAGE'
@@ -18,34 +21,50 @@ json=false
 positional=()
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --flake|--configuration|--identity)
-      [[ $# -ge 2 && -n $2 ]] || die "$1 requires a value"
-      case $1 in
-        --flake) flake=$2; flake_given=true ;;
-        --configuration) configuration=$2 ;;
-        --identity) rekey_identity=$2 ;;
-      esac
-      shift 2
+  --flake | --configuration | --identity)
+    [[ $# -ge 2 && -n $2 ]] || die "$1 requires a value"
+    case $1 in
+    --flake)
+      flake=$2
+      flake_given=true
       ;;
-    --json) json=true; shift ;;
-    -h|--help) usage; exit 0 ;;
-    --) shift; positional+=("$@"); break ;;
-    -*) die "unknown option: $1" ;;
-    *) positional+=("$1"); shift ;;
+    --configuration) configuration=$2 ;;
+    --identity) rekey_identity=$2 ;;
+    esac
+    shift 2
+    ;;
+  --json)
+    json=true
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --)
+    shift
+    positional+=("$@")
+    break
+    ;;
+  -*) die "unknown option: $1" ;;
+  *)
+    positional+=("$1")
+    shift
+    ;;
   esac
 done
 [[ ${#positional[@]} -gt 0 ]] || die "expected a command; see --help"
 command_name=${positional[0]}
 case $command_name in
-  list) [[ ${#positional[@]} == 1 ]] || die "list takes no address" ;;
-  edit)
-    [[ ${#positional[@]} == 2 ]] || die "edit requires one address"
-    ;;
-  rekey|clean) [[ ${#positional[@]} == 1 ]] || die "$command_name takes no address" ;;
-  *) die "unknown command: $command_name; see --help" ;;
+list) [[ ${#positional[@]} == 1 ]] || die "list takes no address" ;;
+edit)
+  [[ ${#positional[@]} == 2 ]] || die "edit requires one address"
+  ;;
+rekey | clean) [[ ${#positional[@]} == 1 ]] || die "$command_name takes no address" ;;
+*) die "unknown command: $command_name; see --help" ;;
 esac
-[[ $command_name == list || ( $json == false && -z $configuration ) ]] \
-  || die "--json and --configuration are for list"
+[[ $command_name == list || ($json == false && -z $configuration) ]] ||
+  die "--json and --configuration are for list"
 [[ $command_name == rekey || -z $rekey_identity ]] || die "--identity is for rekey"
 
 flake_dir=
@@ -53,7 +72,7 @@ if [[ $command_name != clean || $flake_given == true ]]; then
   [[ -d $flake ]] || die "--flake must be a local directory: $flake"
   flake_dir=$(realpath -e -- "$flake")
   case $flake_dir in
-    /nix/store|/nix/store/*) die "--flake must be a local directory outside /nix/store: $flake" ;;
+  /nix/store | /nix/store/*) die "--flake must be a local directory outside /nix/store: $flake" ;;
   esac
   [[ -f $flake_dir/flake.nix ]] || die "no flake.nix in $flake_dir"
 fi
@@ -65,18 +84,18 @@ if [[ $command_name == clean ]]; then
     echo "Decrypt cache already empty: $cache_dir"
     exit 0
   fi
-  [[ -d $cache_dir && -O $cache_dir ]] \
-    || die "refusing to remove a decrypt cache that is not a directory owned by the current user: $cache_dir"
+  [[ -d $cache_dir && -O $cache_dir ]] ||
+    die "refusing to remove a decrypt cache that is not a directory owned by the current user: $cache_dir"
   cache_dir=$(realpath -e -- "$cache_dir")
   case $cache_dir in
-    /nix/store|/nix/store/*) die "refusing to remove a decrypt cache in /nix/store" ;;
+  /nix/store | /nix/store/*) die "refusing to remove a decrypt cache in /nix/store" ;;
   esac
   # An accidental override such as /, ~ or . must not erase unrelated files.
   for protected in / "${HOME:-}" "$(pwd -P)" "$flake_dir"; do
     [[ -n $protected ]] || continue
     protected=$(realpath -m -- "$protected")
-    [[ $protected != "$cache_dir" && $protected != "$cache_dir/"* ]] \
-      || die "refusing to remove a decrypt cache containing $protected: $cache_dir"
+    [[ $protected != "$cache_dir" && $protected != "$cache_dir/"* ]] ||
+      die "refusing to remove a decrypt cache containing $protected: $cache_dir"
   done
   rm -rf -- "$cache_dir"
   echo "Removed decrypt cache: $cache_dir"
@@ -118,15 +137,14 @@ holds_plaintext_key() {
   while IFS= read -r line || [[ -n $line ]]; do
     line=${line%$'\r'}
     case $line in
-      AGE-SECRET-KEY-*) return 0 ;;
-      '-----BEGIN OPENSSH PRIVATE KEY-----') openssh=true ;;
-      '-----END OPENSSH PRIVATE KEY-----') break ;;
-      *) [[ $openssh == false ]] || body+=$line ;;
+    AGE-SECRET-KEY-*) return 0 ;;
+    '-----BEGIN OPENSSH PRIVATE KEY-----') openssh=true ;;
+    '-----END OPENSSH PRIVATE KEY-----') break ;;
+    *) [[ $openssh == false ]] || body+=$line ;;
     esac
-  done < "$1"
+  done <"$1"
   [[ -n $body ]] || return 1
-  [[ $(base64 -d <<< "$body" 2> /dev/null | head -c 23 | od -An -tx1 | tr -d ' \n') \
-    == "$unencrypted_openssh_header" ]]
+  [[ $(base64 -d <<<"$body" 2>/dev/null | head -c 23 | od -An -tx1 | tr -d ' \n') == "$unencrypted_openssh_header" ]]
 }
 
 # A master identity inside the flake root is committed with it and copied
@@ -140,14 +158,14 @@ while IFS= read -r -d '' identity; do
       "inside the flake, which is copied into the Nix store; use a YubiKey or FIDO2 identity" \
       "stub, a passphrase-protected identity, or a path outside the flake" >&2
   fi
-done < <(jq -j '.masterIdentities[].identity | select(startswith("/") | not) | ., "\u0000"' <<< "$manifest")
+done < <(jq -j '.masterIdentities[].identity | select(startswith("/") | not) | ., "\u0000"' <<<"$manifest")
 
 if [[ -n $configuration ]]; then
-  jq -e --arg name "$configuration" '.configurations | has($name)' <<< "$manifest" > /dev/null \
-    || die "unknown configuration: $configuration"
+  jq -e --arg name "$configuration" '.configurations | has($name)' <<<"$manifest" >/dev/null ||
+    die "unknown configuration: $configuration"
   manifest=$(jq --arg name "$configuration" '
     .configurations |= with_entries(select(.key == $name))
-  ' <<< "$manifest")
+  ' <<<"$manifest")
 fi
 
 shields=$(jq '[
@@ -155,17 +173,17 @@ shields=$(jq '[
     .value.files | to_entries[] |
     {address: ($configuration + ":" + .key), configuration: $configuration,
       name: .key, file: .value}
-]' <<< "$manifest")
+]' <<<"$manifest")
 
 if [[ $command_name == list ]]; then
   listing=$(
     while IFS= read -r shield; do
-      file=$(resolve_file "$(jq -r .file <<< "$shield")") || exit
+      file=$(resolve_file "$(jq -r .file <<<"$shield")") || exit
       status=missing
       [[ ! -f $file ]] || status=exists
-      jq --arg status "$status" '. + {status: $status}' <<< "$shield"
-    done < <(jq -c '.[]' <<< "$shields") \
-      | jq -s --argjson configurations "$(jq '.configurations | map_values({files: {}})' <<< "$manifest")" '
+      jq --arg status "$status" '. + {status: $status}' <<<"$shield"
+    done < <(jq -c '.[]' <<<"$shields") |
+      jq -s --argjson configurations "$(jq '.configurations | map_values({files: {}})' <<<"$manifest")" '
         reduce .[] as $shield ({configurations: $configurations};
           .configurations[$shield.configuration].files[$shield.name] =
             {file: $shield.file, status: $shield.status}
@@ -185,7 +203,7 @@ if [[ $command_name == list ]]; then
         (.key as $configuration | .value.files | to_entries[] |
           "  \($configuration):\(.key) [\(.value.status)] \(.value.file)")),
       "Total: \(.totals.total); exists: \(.totals.exists); missing: \(.totals.missing)"
-    ' <<< "$listing"
+    ' <<<"$listing"
   fi
   exit 0
 fi
@@ -194,8 +212,8 @@ if [[ $command_name == edit ]]; then
   address=${positional[1]}
   shield=$(jq -ce --arg address "$address" '
     map(select(.address == $address)) | if length == 1 then .[0] else empty end
-  ' <<< "$shields") || die "unknown address (or ambiguous declaration): $address"
-  file=$(resolve_file "$(jq -r .file <<< "$shield")")
+  ' <<<"$shields") || die "unknown address (or ambiguous declaration): $address"
+  file=$(resolve_file "$(jq -r .file <<<"$shield")")
   [[ ! -e $file || -f $file ]] || die "not a regular shield file: $file"
   [[ -n ${EDITOR:-} ]] || die "set EDITOR to the editor command to run"
 fi
@@ -219,8 +237,8 @@ stub_pubkey() {
     return 1
   fi
   # Every key in the comments, repeats included, as agenix-rekey counts them.
-  keys=$(LC_ALL=C grep --text --fixed-strings -- "$comment" "$file" \
-    | LC_ALL=C grep --text --only-matching --extended-regexp -- "$key") || return 1
+  keys=$(LC_ALL=C grep --text --fixed-strings -- "$comment" "$file" |
+    LC_ALL=C grep --text --only-matching --extended-regexp -- "$key") || return 1
   [[ $keys != *$'\n'* ]] || return 1
   echo "$keys"
 }
@@ -233,8 +251,8 @@ stub_pubkey() {
 identity_args=()
 recipient_args=()
 while IFS= read -r entry; do
-  identity=$(resolve_key_file "$(jq -r .identity <<< "$entry")") || exit
-  pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
+  identity=$(resolve_key_file "$(jq -r .identity <<<"$entry")") || exit
+  pubkey=$(jq -r '.pubkey // empty' <<<"$entry")
   if [[ -z $pubkey ]]; then
     [[ -f $identity ]] || die "master identity does not exist: $identity"
     pubkey=$(stub_pubkey "$identity") || pubkey=
@@ -245,20 +263,20 @@ while IFS= read -r entry; do
     recipient_args+=(--identity "$identity")
   fi
   [[ ! -f $identity ]] || identity_args+=(--identity "$identity")
-done < <(jq -c '.masterIdentities[]' <<< "$manifest")
+done < <(jq -c '.masterIdentities[]' <<<"$manifest")
 [[ ${#recipient_args[@]} -gt 0 ]] || die "no master identity declared"
 
 # Extra encryption pubkeys only receive shields; they never decrypt.
 while IFS= read -r entry; do
-  pubkey=$(jq -r '.pubkey // empty' <<< "$entry")
+  pubkey=$(jq -r '.pubkey // empty' <<<"$entry")
   if [[ -n $pubkey ]]; then
     recipient_args+=(--recipient "$pubkey")
   else
-    recipients_file=$(resolve_key_file "$(jq -r .recipientsFile <<< "$entry")") || exit
+    recipients_file=$(resolve_key_file "$(jq -r .recipientsFile <<<"$entry")") || exit
     [[ -f $recipients_file ]] || die "recipients file does not exist: $recipients_file"
     recipient_args+=(--recipients-file "$recipients_file")
   fi
-done < <(jq -c '.extraEncryptionPubkeys[]' <<< "$manifest")
+done < <(jq -c '.extraEncryptionPubkeys[]' <<<"$manifest")
 
 # The primary identity, relative to the caller, is tried first or alone.
 primary_identity=${NIXOS_SHIELDS_PRIMARY_IDENTITY:-}
@@ -268,8 +286,8 @@ if [[ -n $primary_identity ]]; then
   decryption_args+=(--identity "$primary_identity")
 fi
 if [[ ${NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY:-} == true ]]; then
-  [[ -n $primary_identity ]] \
-    || die "NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY"
+  [[ -n $primary_identity ]] ||
+    die "NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY requires NIXOS_SHIELDS_PRIMARY_IDENTITY"
 else
   decryption_args+=("${identity_args[@]}")
 fi
@@ -289,7 +307,7 @@ if [[ $command_name == rekey ]]; then
       files+=("$file")
       seen_files[$file]=true
     fi
-  done < <(jq -j '.[].file | ., "\u0000"' <<< "$shields")
+  done < <(jq -j '.[].file | ., "\u0000"' <<<"$shields")
 fi
 
 umask 077
@@ -305,7 +323,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 workdir=$(mktemp -d "${TMPDIR:-/tmp}/nixos-shields.XXXXXX")
 case $(realpath -- "$workdir") in
-  "$flake_dir/"*) die "temporary directory must be outside the flake; set TMPDIR" ;;
+"$flake_dir/"*) die "temporary directory must be outside the flake; set TMPDIR" ;;
 esac
 plaintext=$workdir/shield.nix
 
@@ -339,11 +357,11 @@ if [[ -f $file ]]; then
   existing=true
   decrypt_file "$file"
 else
-  echo '{}' > "$plaintext"
+  echo '{}' >"$plaintext"
 fi
 cp "$plaintext" "$workdir/original.nix"
-bash -c "$EDITOR \"\$@\"" nixos-shields-editor "$plaintext" \
-  || die "editor failed; shield left unchanged"
+bash -c "$EDITOR \"\$@\"" nixos-shields-editor "$plaintext" ||
+  die "editor failed; shield left unchanged"
 [[ -f $plaintext ]] || die "editor removed the plaintext file; shield left unchanged"
 if [[ $existing == true ]] && cmp -s "$plaintext" "$workdir/original.nix"; then
   echo "Unchanged: $address"

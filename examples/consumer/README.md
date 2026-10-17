@@ -10,12 +10,12 @@ It is a plain age key inside the flake root, so every `nixos-shields` command ex
 
 ## Layout
 
-| Path | Role |
-| --- | --- |
-| `flake.nix` | Two configurations, `alpha` and `beta`, each reading `shields/<name>.nix.age` and `shields/shared.nix.age` |
-| `master-identities/throwaway.txt` | The throwaway age identity every shield is encrypted to |
-| `shields/shared.nix.age` | The shield both configurations declare, holding the shared domain `example.test` |
-| `shields/alpha.nix.age` | `alpha`'s own shield |
+| Path                              | Role                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `flake.nix`                       | Two configurations, `alpha` and `beta`, each reading `shields/<name>.nix.age` and `shields/shared.nix.age` |
+| `master-identities/throwaway.txt` | The throwaway age identity every shield is encrypted to                                                    |
+| `shields/shared.nix.age`          | The shield both configurations declare, holding the shared domain `example.test`                           |
+| `shields/alpha.nix.age`           | `alpha`'s own shield                                                                                       |
 
 `beta` declares `shields/beta.nix.age`, which does not exist: reading its `facts` value fails with a message naming that file, while its `shared` value reads normally. It shows what a fresh configuration without a shield looks like.
 

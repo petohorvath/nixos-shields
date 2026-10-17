@@ -27,10 +27,10 @@ Encryption also targets every [extra encryption pubkey](reference.md#extra-encry
 
 When the manifest pairs no public key with a master identity, encryption reads the identity file, inside or outside the flake root, and takes the public key from a YubiKey or FIDO2 identity stub, following agenix-rekey's rules:
 
-| Stub | Identity line | Public key |
-| --- | --- | --- |
-| YubiKey, from `age-plugin-yubikey` | `AGE-PLUGIN-YUBIKEY-…` | The `age1yubikey1…` key in a `Recipient: age1yubikey1…` comment |
-| FIDO2, from `age-plugin-fido2-hmac` | `AGE-PLUGIN-FIDO2-HMAC-…` | The `age1…` key in a `public key: age1…` comment |
+| Stub                                | Identity line             | Public key                                                      |
+| ----------------------------------- | ------------------------- | --------------------------------------------------------------- |
+| YubiKey, from `age-plugin-yubikey`  | `AGE-PLUGIN-YUBIKEY-…`    | The `age1yubikey1…` key in a `Recipient: age1yubikey1…` comment |
+| FIDO2, from `age-plugin-fido2-hmac` | `AGE-PLUGIN-FIDO2-HMAC-…` | The `age1…` key in a `public key: age1…` comment                |
 
 Encryption then targets that key, so it never touches the hardware; a YubiKey recipient still needs `age-plugin-yubikey` on `PATH`. A declared `pubkey` wins over the stub's comment.
 

@@ -4,15 +4,15 @@
 
 The tests follow the devnix-labs test layout: one directory under [`tests/`](../tests) for each test kind, each with an entry point, `default.nix`, that lists its tests by hand. A test file missing from its entry point's list does not run. [`dev/default.nix`](../dev/default.nix) runs the unit and integration suites through nix-unit's flake-parts module, [`tests/default.nix`](../tests/default.nix) names the build tests, and [`dev/checks.nix`](../dev/checks.nix) adds `formatting`, `lint`, and a `package-<name>` check for each package.
 
-| Check | Covers |
-| --- | --- |
-| `nix-unit` | The nix-unit suites: those under `tests/unit` evaluate the kit's code alone, and those under `tests/integration` evaluate it inside flake-parts |
-| `build-cli` | The packaged command-line tool against the example consumer |
-| `build-decrypt-cache` | The decrypt script and its decrypt cache |
-| `build-wrapped-nix` | The wrapped Nix inside the build sandbox |
-| `formatting` | Whether the formatter would change a file |
-| `lint` | statix, deadnix, shellcheck, and actionlint |
-| `package-<name>` | Whether each package of the `packages` output except `default` builds: `decrypt`, `extra-builtins`, `nix`, `nix-plugins`, and `nixos-shields` |
+| Check                 | Covers                                                                                                                                          |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nix-unit`            | The nix-unit suites: those under `tests/unit` evaluate the kit's code alone, and those under `tests/integration` evaluate it inside flake-parts |
+| `build-cli`           | The packaged command-line tool against the example consumer                                                                                     |
+| `build-decrypt-cache` | The decrypt script and its decrypt cache                                                                                                        |
+| `build-wrapped-nix`   | The wrapped Nix inside the build sandbox                                                                                                        |
+| `formatting`          | Whether the formatter would change a file                                                                                                       |
+| `lint`                | statix, deadnix, shellcheck, and actionlint                                                                                                     |
+| `package-<name>`      | Whether each package of the `packages` output except `default` builds: `decrypt`, `extra-builtins`, `nix`, `nix-plugins`, and `nixos-shields`   |
 
 ## `nix-unit`
 
