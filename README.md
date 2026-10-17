@@ -262,7 +262,7 @@ Keep these overrides in the consumer; they are not kit outputs. The recipe overr
 
 ## Decrypt cache
 
-Decrypted shields are kept in a per-user decrypt cache, so an unchanged shield is not decrypted again, and a hardware identity not prompted again, by each evaluation or each `nixos-shields edit` and `rekey`. The decrypt cache lives at `/var/tmp/nixos-shields-<uid>` and holds plaintext readable to the account that owns it. `NIXOS_SHIELDS_CACHE_DIR` moves it, for example to a tmpfs:
+Decrypted shields are kept in a per-user decrypt cache, so an unchanged shield is not decrypted again, and a hardware identity not prompted again, by evaluation, `nixos-shields edit`, or `nixos-shields rekey`. The decrypt cache lives at `/var/tmp/nixos-shields-<uid>` and holds plaintext readable to the account that owns it. `NIXOS_SHIELDS_CACHE_DIR` moves it, for example to a tmpfs:
 
 ```sh
 NIXOS_SHIELDS_CACHE_DIR=/run/user/1000/nixos-shields \

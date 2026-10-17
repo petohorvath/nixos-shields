@@ -208,3 +208,5 @@ Each decrypt cache entry is keyed by the shield file's content hash and base nam
 Evaluation and `nixos-shields edit` and `rekey` read shields through the decrypt cache, so a shield that one of them unlocked is not decrypted again by another. Saving a shield adds no entry, so the next evaluation decrypts the new file and shows whether a master identity on the machine opens it.
 
 The directory defaults to `/var/tmp/nixos-shields-<uid>`, and `NIXOS_SHIELDS_CACHE_DIR` overrides it.
+
+`nixos-shields clean` removes the decrypt cache by calling `nixos-shields-decrypt --clean [<protected-directory>...]` from `packages.<system>.decrypt`. It refuses a directory that is a symlink, is not owned by the current user, or lies in `/nix/store`, and one containing `/`, the home directory, the current directory, or a protected directory given to it. `nixos-shields clean` protects the selected flake.

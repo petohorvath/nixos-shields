@@ -113,20 +113,20 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
 
     # Each identity case starts with a cold decrypt cache of its own, so it
     # really decrypts.
-    coldCache() { export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/cache-$1; }
+    coldDecryptCache() { export NIXOS_SHIELDS_CACHE_DIR=$TMPDIR/cache-$1; }
     rage-keygen -o stranger.txt 2>/dev/null
 
     # An identity file that does not exist, such as a teammate's, is skipped;
     # with none left, decryption fails naming the shield file.
-    coldCache absent
+    coldDecryptCache absent
     actual=$(nixos-shields-decrypt shield.nix.age absent.txt identity.txt)
     [[ $actual == "$second" ]] || fail "absent identity: printed '$actual'"
-    coldCache none
+    coldDecryptCache none
     expectFailure 'no master identity file exists to decrypt shield.nix.age' \
       nixos-shields-decrypt shield.nix.age absent.txt
 
     # The given identities follow a primary identity that cannot decrypt.
-    coldCache fallback
+    coldDecryptCache fallback
     actual=$(NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt \
       nixos-shields-decrypt shield.nix.age identity.txt)
     [[ $actual == "$second" ]] || fail "primary fallback: printed '$actual'"
@@ -135,12 +135,12 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
     # caller, even when no given identity exists.
     mkdir caller
     cp identity.txt caller/primary.txt
-    coldCache only
+    coldDecryptCache only
     actual=$(cd caller && NIXOS_SHIELDS_PRIMARY_IDENTITY=primary.txt \
       NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
       nixos-shields-decrypt "$TMPDIR/shield.nix.age" absent.txt)
     [[ $actual == "$second" ]] || fail "primary only: printed '$actual'"
-    coldCache only-stranger
+    coldDecryptCache only-stranger
     expectFailure 'No matching keys found' env NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt \
       NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true nixos-shields-decrypt shield.nix.age identity.txt
     # A failed decryption leaves neither an entry nor a partial file behind.
@@ -151,8 +151,9 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
     expectFailure 'primary identity does not exist: absent.txt' \
       env NIXOS_SHIELDS_PRIMARY_IDENTITY=absent.txt nixos-shields-decrypt shield.nix.age identity.txt
 
-    # The variables choose identities only on a miss, not the cache key.
-    coldCache absent
+    # The variables choose identities only on a miss, not the decrypt cache
+    # key.
+    coldDecryptCache absent
     actual=$(NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
       nixos-shields-decrypt shield.nix.age identity.txt)
     [[ $actual == "$second" ]] || fail "hit with primary only: printed '$actual'"

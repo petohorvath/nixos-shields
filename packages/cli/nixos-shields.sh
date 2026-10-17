@@ -81,10 +81,7 @@ fi
 # The decrypt script owns the decrypt cache; a selected flake is protected
 # beside the directories it always protects.
 if [[ $command_name == clean ]]; then
-  if [[ -n $flake_dir ]]; then
-    exec nixos-shields-decrypt --clean "$flake_dir"
-  fi
-  exec nixos-shields-decrypt --clean
+  exec nixos-shields-decrypt --clean ${flake_dir:+"$flake_dir"}
 fi
 
 # Resolve against the checkout, including symlinks, before reading or writing.

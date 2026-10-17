@@ -20,16 +20,16 @@ expectFailure() {
 # Evaluation shares one decrypt cache. Every run of the tool that names
 # none gets a cold one of its own, so a decryption it asserts on is never
 # served by an entry that an evaluation or an earlier run left behind.
-evaluation_cache=$TMPDIR/decrypt-cache
-mkdir "$TMPDIR/cold-cache-bin"
-cat >"$TMPDIR/cold-cache-bin/nixos-shields" <<WRAPPER
+evaluation_decrypt_cache=$TMPDIR/decrypt-cache
+mkdir "$TMPDIR/cold-decrypt-cache-bin"
+cat >"$TMPDIR/cold-decrypt-cache-bin/nixos-shields" <<WRAPPER
 #!$BASH
 [[ -n \${NIXOS_SHIELDS_CACHE_DIR:-} ]] ||
-  export NIXOS_SHIELDS_CACHE_DIR=\$(mktemp -d "$TMPDIR/cli-cache.XXXXXX")
+  export NIXOS_SHIELDS_CACHE_DIR=\$(mktemp -d "$TMPDIR/cli-decrypt-cache.XXXXXX")
 exec $(command -v nixos-shields) "\$@"
 WRAPPER
-chmod +x "$TMPDIR/cold-cache-bin/nixos-shields"
-export PATH=$TMPDIR/cold-cache-bin:$PATH
+chmod +x "$TMPDIR/cold-decrypt-cache-bin/nixos-shields"
+export PATH=$TMPDIR/cold-decrypt-cache-bin:$PATH
 
 # Cleanup is useful even outside a flake and with no manifest available.
 # The decrypt script refuses an unsafe directory; the tool adds the
@@ -101,7 +101,7 @@ expectFailure 'local directory' nixos-shields list --flake "path:$consumer"
 expectFailure 'local directory' nixos-shields --flake "$example" list
 
 evalExample() {
-  NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache \
+  NIXOS_SHIELDS_CACHE_DIR=$evaluation_decrypt_cache \
     nix eval --json --extra-experimental-features 'nix-command flakes' "path:.#$1"
 }
 
@@ -276,9 +276,13 @@ done
   fail "beta cannot read the shared shield beside the locked identity"
 
 # The primary identity need not be declared, and is relative to the caller.
-# With _ONLY, a copy of the declared one decrypts alone.
+# With _ONLY, it alone decrypts: the removed identity fails, a copy of the
+# declared one succeeds.
 cp master-identities/backup.txt "$TMPDIR/primary.txt"
 cp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age"
+expectFailure 'No matching keys found' env NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
+  NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true EDITOR="bash '$TMPDIR/scripted editor' unchanged" \
+  nixos-shields edit alpha:facts
 (
   cd "$TMPDIR" || exit
   NIXOS_SHIELDS_PRIMARY_IDENTITY=primary.txt NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true \
@@ -287,11 +291,12 @@ cp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age"
 cmp shields/alpha.nix.age "$TMPDIR/alpha-before-primary.age" || fail "primary identity edit rewrote the shield"
 
 # The tool reads shields through the decrypt cache, so one an evaluation
-# unlocked opens for edit with only an identity that cannot decrypt it.
-NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache nix eval --json --no-eval-cache \
+# unlocked opens for edit with only the removed identity, which failed
+# above.
+NIXOS_SHIELDS_CACHE_DIR=$evaluation_decrypt_cache nix eval --json --no-eval-cache \
   --extra-experimental-features 'nix-command flakes' \
   path:.#nixosConfigurations.alpha.config.networking.domain >/dev/null
-NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
+NIXOS_SHIELDS_CACHE_DIR=$evaluation_decrypt_cache NIXOS_SHIELDS_PRIMARY_IDENTITY="$TMPDIR/old identity.txt" \
   NIXOS_SHIELDS_PRIMARY_IDENTITY_ONLY=true EDITOR="bash '$TMPDIR/scripted editor' unchanged" \
   nixos-shields edit alpha:facts ||
   fail "edit did not read the shield the evaluation cached"
@@ -554,7 +559,7 @@ extra_cache=$(mktemp -d "$TMPDIR/extra-cache.XXXXXX")
 copies=$(find "$NIX_STORE" -maxdepth 1 -name '*.nix.age' -o -name '*outside-identity*')
 [[ -z $copies ]] || fail "shield file or outside identity copied into the store: $copies"
 
-[[ -n $(find "$evaluation_cache" -type f -print -quit) ]] ||
+[[ -n $(find "$evaluation_decrypt_cache" -type f -print -quit) ]] ||
   fail "wrapped evaluation did not populate the decrypt cache"
-NIXOS_SHIELDS_CACHE_DIR=$evaluation_cache nixos-shields clean
-[[ ! -e $evaluation_cache ]] || fail "clean left the evaluation's decrypt cache behind"
+NIXOS_SHIELDS_CACHE_DIR=$evaluation_decrypt_cache nixos-shields clean
+[[ ! -e $evaluation_decrypt_cache ]] || fail "clean left the evaluation's decrypt cache behind"
