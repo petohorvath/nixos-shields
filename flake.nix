@@ -25,12 +25,10 @@
   outputs =
     inputs@{ flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      # CI checks both Linux systems; aarch64-darwin is declared only.
-      # x86_64-darwin is absent because nixpkgs drops it in 26.11.
+      # CI checks every declared system; darwin is not supported.
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "aarch64-darwin"
       ];
 
       imports = [ flake-parts.flakeModules.partitions ];

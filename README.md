@@ -13,7 +13,7 @@ A plugin builtin decrypts shields during evaluation, so evaluation needs the kit
 ## Requirements
 
 - Nix with flakes enabled to fetch the kit. The kit supplies its own wrapped Nix from the Nix 2.34 series for every evaluation that reads a shield, because the [nix-plugins](https://github.com/shlevy/nix-plugins) builtin must match the Nix that loads it. [Nix version and plugin ABI](docs/reference.md#nix-version-and-plugin-abi) explains the pairing.
-- x86_64-linux or aarch64-linux, which CI tests. Outputs are also declared for aarch64-darwin, which CI does not test. x86_64-darwin is not declared, because nixpkgs drops it in 26.11.
+- x86_64-linux or aarch64-linux, which CI tests. Darwin is not supported.
 
 ## Install
 
