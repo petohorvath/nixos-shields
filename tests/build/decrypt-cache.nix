@@ -17,6 +17,15 @@ let
   decrypt = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.decrypt.override {
     rage = countingRage;
   };
+
+  # rage starts an age plugin only on reaching its identity, so this
+  # stand-in records each start and then fails, as no YubiKey answers.
+  yubikeyPlugin = pkgs.writeShellScriptBin "age-plugin-yubikey" ''
+    echo started >> "$PLUGIN_STARTS"
+    while IFS= read -r line; do
+      [[ $line != '-> done' ]] || exit 1
+    done
+  '';
 in
 pkgs.runCommand "nixos-shields-decrypt-cache"
   {
@@ -130,6 +139,28 @@ pkgs.runCommand "nixos-shields-decrypt-cache"
     actual=$(NIXOS_SHIELDS_PRIMARY_IDENTITY=stranger.txt \
       nixos-shields-decrypt shield.nix.age identity.txt)
     [[ $actual == "$second" ]] || fail "primary fallback: printed '$actual'"
+
+    # The primary identity is tried before the given ones, so a hardware
+    # identity behind one that decrypts is never prompted. A YubiKey stub
+    # given first starts the stand-in plugin, which shows it would be.
+    {
+      echo '#    Recipient: age1yubikey1z53z70zf2e3hqlv2j7jtr0ktmrjl9lcvrynrxszdtfnhfqvwnw5t2d3xvz8'
+      echo 'AGE-PLUGIN-YUBIKEY-1PCDJSD2ZFAWXJA5RJZW64D7Y680WKDV3Z36'
+    } > yubikey.txt
+    export PLUGIN_STARTS=$TMPDIR/plugin-starts
+    touch "$PLUGIN_STARTS"
+    pluginStarts() { wc -l < "$PLUGIN_STARTS"; }
+    coldDecryptCache stub-first
+    expectFailure 'age-plugin-yubikey' env PATH="${yubikeyPlugin}/bin:$PATH" \
+      nixos-shields-decrypt shield.nix.age yubikey.txt identity.txt
+    [[ $(pluginStarts) == 1 ]] || fail "stub first: plugin started $(pluginStarts) times, expected 1"
+    : > "$PLUGIN_STARTS"
+    coldDecryptCache primary-first
+    actual=$(PATH="${yubikeyPlugin}/bin:$PATH" NIXOS_SHIELDS_PRIMARY_IDENTITY=identity.txt \
+      nixos-shields-decrypt shield.nix.age yubikey.txt) \
+      || fail "primary first: decryption failed after $(pluginStarts) plugin starts"
+    [[ $actual == "$second" ]] || fail "primary first: printed '$actual'"
+    [[ $(pluginStarts) == 0 ]] || fail "primary first: the stub's plugin started before the primary identity"
 
     # With _ONLY, the primary identity alone decrypts, relative to the
     # caller, even when no given identity exists.
