@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # nixos-shields-decrypt [--print-out-path] <shield-file> <identity>...
 #
 # Decrypts a shield file into the decrypt cache and prints the plaintext

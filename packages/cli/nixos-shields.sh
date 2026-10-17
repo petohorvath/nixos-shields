@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 die() {
   echo "nixos-shields: $*" >&2
   exit 1

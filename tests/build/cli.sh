@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # cli.nix copies the example to $consumer before sourcing this script.
 : "${consumer:?}" "${example:?}"
 
