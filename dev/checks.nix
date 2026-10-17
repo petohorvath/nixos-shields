@@ -15,10 +15,16 @@ lib.foldl' lib.attrsets.unionOfDisjoint { } [
   (import ../tests { inherit inputs pkgs; })
   packageChecks
   {
-    lint = pkgs.runCommand "nixos-shields-lint" { nativeBuildInputs = [ pkgs.statix ]; } ''
-      cd ${../.}
-      statix check .
-      touch "$out"
-    '';
+    lint =
+      pkgs.runCommand "nixos-shields-lint"
+        {
+          src = ../.;
+          nativeBuildInputs = [ pkgs.statix ];
+        }
+        ''
+          cd "$src"
+          statix check .
+          touch "$out"
+        '';
   }
 ]
