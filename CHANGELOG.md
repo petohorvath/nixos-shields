@@ -41,10 +41,6 @@
 - Flake-scoped shields. `flakeModules.default` loses the `shields.dir`, `shields.masterIdentities`, `shields.files`, `shields.values`, and `shields.nixosModule` options; import `nixosModules.default` in each configuration instead, and keep `shields.configurations`.
 - The `masterIdentities` and `files` arguments of `lib.mkManifest`, which now takes only `self` and `configurations`.
 
-### Fixed
-
-- A shield file given as an absolute path string decrypts. Before, it passed `nixos-shields list` and `edit`, then failed evaluation with `shield file must be an existing path` for a file that exists.
-- A shield file whose name does not end in `.nix.age` fails the `age.shields.files` option, so `nixos-shields list` and `edit` refuse it too, instead of only evaluation failing.
 - The manifest's top-level `files` field.
 - Bare `<name>` addresses in `nixos-shields`; address every shield as `<configuration>:<name>`.
 - The flake-scoped group of `nixos-shields list`, in its text output and the `files` field of its JSON output.
@@ -52,6 +48,8 @@
 ### Fixed
 
 - The nix-plugins build no longer fails with nixpkgs that patches nix-plugins for Nix 2.33 and 2.34 itself, such as `nixos-unstable` from 2026-10-27: the kit's compatibility patch replaces nixpkgs' patches instead of being applied on top of them.
+- A shield file given as an absolute path string decrypts. Before, it passed `nixos-shields list` and `edit`, then failed evaluation with `shield file must be an existing path` for a file that exists.
+- A shield file whose name does not end in `.nix.age` fails the `age.shields.files` option, so `nixos-shields list` and `edit` refuse it too, instead of only evaluation failing.
 - A failed decryption no longer leaves a partial file, which may hold plaintext, in the decrypt cache.
 
 ## 0.1.0 - 2026-09-14

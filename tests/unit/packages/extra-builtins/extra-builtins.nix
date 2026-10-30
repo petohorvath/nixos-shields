@@ -1,9 +1,9 @@
 # The importShield builtin, imported from source with a fake exec that
 # returns its argv: the checks it makes before decrypting, and the
 # command it hands to exec.
-{ fakeExtraBuiltins, fixtures, ... }:
+{ fixtures, helpers, ... }:
 let
-  inherit (fakeExtraBuiltins) importShield;
+  inherit (helpers.fakeExtraBuiltins) importShield;
   inherit (fixtures) existingShieldPath;
 
   existingShieldString = toString existingShieldPath;

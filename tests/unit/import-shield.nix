@@ -2,15 +2,16 @@
 # entry form reaches the builtin, and the failure when the running Nix
 # lacks the builtin.
 {
-  fakeExtraBuiltins,
   fixtures,
-  importShieldWith,
+  helpers,
+  internal,
   ...
 }:
 let
   inherit (fixtures) existingShieldPath;
 
-  importShield = importShieldWith fakeExtraBuiltins;
+  importShieldWith = internal.importShield;
+  importShield = importShieldWith helpers.fakeExtraBuiltins;
   noBuiltin = "nixos-shields: importShield builtin not loaded; use the wrapped Nix from lib\\.mkNix";
 in
 {

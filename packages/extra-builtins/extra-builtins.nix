@@ -37,7 +37,7 @@ let
 
   noIdentity = file: "nixos-shields: no master identity configured; cannot decrypt ${toString file}";
   badIdentities = "nixos-shields: the master identities must be a list of paths or absolute path strings";
-  badFile =
+  badFileType =
     file: "nixos-shields: shield file ${toString file} must be a path or an absolute path string";
   badSuffix = file: "nixos-shields: shield file name must end in .nix.age: ${toString file}";
   missingFile = file: "nixos-shields: shield file ${toString file} does not exist";
@@ -54,7 +54,7 @@ in
     identities: file:
     assert identities != [ ] || throw (noIdentity file);
     assert isIdentityList identities || throw badIdentities;
-    assert isLocation file || throw (badFile file);
+    assert isLocation file || throw (badFileType file);
     assert hasSuffix ".nix.age" (baseNameOf file) || throw (badSuffix file);
     assert pathExists file || throw (missingFile file);
     exec (
