@@ -1,11 +1,11 @@
 /*
   The option tree driven through evalModules without the builtin
-  present. Every case is decided before importShield reaches the
-  builtin: a missing file and an empty identity list fail on their own,
-  so the module's wiring of files to values is observable without a
-  plugin build.
+  present. Reading a value reaches importShield, which fails for want of
+  the builtin, so the module's wiring of files to values is observable
+  without a plugin build. The builtin's own checks are in the
+  extra-builtins suite.
 */
-{ fixtures, helpers, ... }:
+{ helpers, ... }:
 let
   inherit (helpers) evalNixosModule;
 
@@ -46,7 +46,6 @@ let
     };
 
   missingFile.age.shields.files.facts = /srv/shields/missing.nix.age;
-  existingFile.age.shields.files.facts = fixtures.existingShieldPath;
 in
 {
   testDefaults = {
@@ -174,6 +173,20 @@ in
     expr = (evalNixosModule [ wiredFromDir ]).files.facts;
     expected = /srv/shields/alpha.nix.age;
   };
+  # The builtin takes an absolute string as it takes a path.
+  testFilesAcceptAbsoluteString = {
+    expr =
+      (evalNixosModule [ { age.shields.files.facts = "/srv/shields/alpha.nix.age"; } ]).files.facts;
+    expected = "/srv/shields/alpha.nix.age";
+  };
+  # The manifest reads files, so list and edit refuse the name too.
+  testFilesRejectWrongSuffix = {
+    expr = (evalNixosModule [ { age.shields.files.facts = /srv/shields/alpha.age; } ]).files.facts;
+    expectedError = {
+      type = "ThrownError";
+      msg = "age\\.shields\\.files\\.facts.*is not of type.*path whose name ends in \\.nix\\.age";
+    };
+  };
 
   testValuesReadOnly = {
     expr = (evalNixosModule [ { age.shields.values.facts = { }; } ]).values;
@@ -187,18 +200,11 @@ in
     expr = builtins.attrNames (evalNixosModule [ missingFile ]).values;
     expected = [ "facts" ];
   };
-  testValuesFailWithoutFile = {
+  testValuesNeedBuiltin = {
     expr = (evalNixosModule [ missingFile ]).values.facts;
     expectedError = {
       type = "ThrownError";
-      msg = "shield file /srv/shields/missing\\.nix\\.age does not exist";
-    };
-  };
-  testValuesFailWithoutIdentity = {
-    expr = (evalNixosModule [ existingFile ]).values.facts;
-    expectedError = {
-      type = "ThrownError";
-      msg = "no master identity configured";
+      msg = "importShield builtin not loaded; use the wrapped Nix from lib\\.mkNix";
     };
   };
 }

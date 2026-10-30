@@ -24,6 +24,7 @@
 - Every shield belongs to a configuration, and every configuration declares its own master identities, as with agenix-rekey. The manifest's `masterIdentities`, from `lib.mkManifest` and `flakeModules.default`, combines every configuration's `age.shields.masterIdentities`, each identity once, and `nixos-shields edit` and `rekey` encrypt every shield to all of them. Share master identities through a NixOS module imported by each configuration, share data by declaring one shield file in several configurations, and read a configuration's values from outside it through `nixosConfigurations.<name>.config.age.shields.values`.
 - The option `age.shields.masterIdentities` reads back each entry as `{ identity; pubkey; }`, with `pubkey = null` for an entry given as a path.
 - Each entry of the manifest's `masterIdentities` is an object with `identity`, the location, and `pubkey`, a public key or `null`, instead of a location string. Two configurations pairing one identity with different public keys fail evaluation.
+- The `importShield` builtin owns every check on its arguments and rejects an empty identity list itself; its messages start with `nixos-shields:` instead of `importShield:`. Without the builtin, `lib.importShield` fails only with the message naming `lib.mkNix`, even for a missing shield file.
 - `nixos-shields list` headings name each configuration as `Configuration <name>:`.
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are the flake checks `treefmt` and `lint`, run by `nix flake check` and CI. `nix fmt` runs treefmt-nix with nixfmt, deadnix, prettier, shfmt, shellcheck, and actionlint instead of nixfmt-tree.
@@ -39,6 +40,11 @@
 - The development-shell Git hooks.
 - Flake-scoped shields. `flakeModules.default` loses the `shields.dir`, `shields.masterIdentities`, `shields.files`, `shields.values`, and `shields.nixosModule` options; import `nixosModules.default` in each configuration instead, and keep `shields.configurations`.
 - The `masterIdentities` and `files` arguments of `lib.mkManifest`, which now takes only `self` and `configurations`.
+
+### Fixed
+
+- A shield file given as an absolute path string decrypts. Before, it passed `nixos-shields list` and `edit`, then failed evaluation with `shield file must be an existing path` for a file that exists.
+- A shield file whose name does not end in `.nix.age` fails the `age.shields.files` option, so `nixos-shields list` and `edit` refuse it too, instead of only evaluation failing.
 - The manifest's top-level `files` field.
 - Bare `<name>` addresses in `nixos-shields`; address every shield as `<configuration>:<name>`.
 - The flake-scoped group of `nixos-shields list`, in its text output and the `files` field of its JSON output.

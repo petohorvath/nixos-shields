@@ -28,11 +28,22 @@
 */
 { config, lib, ... }:
 let
-  inherit (lib) mapAttrs mkOption types;
+  inherit (lib)
+    hasSuffix
+    mapAttrs
+    mkOption
+    types
+    ;
 
-  importShield = import ../lib/import-shield.nix;
+  importShield = import ../lib/import-shield.nix (builtins.extraBuiltins or null);
 
   cfg = config.age.shields;
+
+  # The builtin's file rule, checked here too so the manifest, and with
+  # it list and edit, refuse a name the builtin would.
+  shieldFileType = types.addCheck types.path (file: hasSuffix ".nix.age" (baseNameOf file)) // {
+    description = "path whose name ends in .nix.age";
+  };
 
   # The shape of agenix-rekey's age.rekey.masterIdentities entries, so a
   # configuration can assign that option's value here.
@@ -88,11 +99,13 @@ in
     };
 
     files = mkOption {
-      type = types.attrsOf types.path;
+      type = types.attrsOf shieldFileType;
       default = { };
       description = ''
-        Shield files by name. Each is decrypted into `values.<name>`;
-        a file that does not exist fails evaluation with its location.
+        Shield files by name, each a path or an absolute path string
+        whose name ends in `.nix.age`. Each is decrypted into
+        `values.<name>`; a file that does not exist fails evaluation
+        with its location.
       '';
     };
 
