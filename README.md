@@ -26,7 +26,7 @@ inputs.nixos-shields = {
 };
 ```
 
-The `treefmt-nix` input serves only the kit's development checks, so a consumer can drop it by adding `inputs.treefmt-nix.follows = "";` to the block.
+The `nix-unit` and `treefmt-nix` inputs serve only the kit's development checks, so a consumer can drop them by adding `inputs.nix-unit.follows = "";` and `inputs.treefmt-nix.follows = "";` to the block.
 
 The flake's default package is the `nixos-shields` command-line tool, and its `nix` package is the wrapped Nix:
 
@@ -191,7 +191,7 @@ age.shields.masterIdentities = [
 ];
 ```
 
-`age.shields.extraEncryptionPubkeys` lists public keys that every shield is also encrypted to and that are never used to decrypt, such as an offline backup key. An entry is a public key string, or a recipients file given as a path or an absolute path string:
+`age.shields.extraEncryptionPubkeys` lists public keys that every shield is also encrypted to and that are never used to decrypt, such as an offline backup key. An entry is a public key, a string starting with `age1`, `ssh-ed25519 `, or `ssh-rsa `, or a recipients file given as a path or an absolute path string:
 
 ```nix
 age.shields.extraEncryptionPubkeys = [

@@ -64,13 +64,13 @@ shields = nixos-shields.lib.mkManifest {
 
 `nixosModules.default` exposes a configuration's shields under `age.shields`. The module knows nothing about configuration names or directory layout: the consumer's wiring decides which file each configuration reads.
 
-| Option                               | Type                                                        | Default | Meaning                                                                                                                                                                                                                                                                                                           |
-| ------------------------------------ | ----------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `age.shields.masterIdentities`       | list of [master identity entries](#master-identity-entries) | `[ ]`   | Age identities, any one of which can decrypt every shield of the configuration, tried in order. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to.                                                                                                   |
-| `age.shields.extraEncryptionPubkeys` | list of public key strings or paths                         | `[ ]`   | [Extra encryption pubkeys](#extra-encryption-pubkeys) that every shield is also encrypted to and that are never used to decrypt.                                                                                                                                                                                  |
-| `age.shields.dir`                    | path                                                        | none    | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it.                                                                                                                                                                              |
-| `age.shields.files`                  | attribute set of paths whose names end in `.nix.age`        | `{ }`   | Shield files by name, each a path or an absolute path string whose name ends in `.nix.age`; another suffix fails the option, and with it the manifest. A file that does not exist fails evaluation with a message naming it. Several configurations can declare the same file, which then has an address in each. |
-| `age.shields.values`                 | attribute set, read-only                                    | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it.                                                                                                                                                                                                       |
+| Option                               | Type                                                        | Default | Meaning                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------ | ----------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `age.shields.masterIdentities`       | list of [master identity entries](#master-identity-entries) | `[ ]`   | Age identities, any one of which can decrypt every shield of the configuration, tried in order. Evaluating a shield with none set fails. The manifest adds them to the identities every shield is encrypted to.                                                                                                                        |
+| `age.shields.extraEncryptionPubkeys` | list of public keys or paths                                | `[ ]`   | [Extra encryption pubkeys](#extra-encryption-pubkeys) that every shield is also encrypted to and that are never used to decrypt. A path or an absolute path string is a recipients file; any other string must be a public key, starting with `age1`, `ssh-ed25519 `, or `ssh-rsa `, or it fails the option, and with it the manifest. |
+| `age.shields.dir`                    | path                                                        | none    | The directory holding the shield files. The kit never reads it; it exists so the consumer's wiring can build file locations from it.                                                                                                                                                                                                   |
+| `age.shields.files`                  | attribute set of paths whose names end in `.nix.age`        | `{ }`   | Shield files by name, each a path or an absolute path string whose name ends in `.nix.age`; another suffix fails the option, and with it the manifest. A file that does not exist fails evaluation with a message naming it. Several configurations can declare the same file, which then has an address in each.                      |
+| `age.shields.values`                 | attribute set, read-only                                    | derived | The decrypted value of each file in `files`, by name. Each value is decrypted only when something reads it.                                                                                                                                                                                                                            |
 
 Configurations share `dir` and `masterIdentities` through a module of the consumer's own, imported by each of them. A flake that also uses agenix-rekey can assign `age.shields.masterIdentities = config.age.rekey.masterIdentities` there, since both options take the same entries. Outside a configuration, its values are readable as `nixosConfigurations.<name>.config.age.shields.values`, for example to give a deploy-rs node its hostname.
 
@@ -78,11 +78,11 @@ Configurations share `dir` and `masterIdentities` through a module of the consum
 
 An entry of `age.shields.masterIdentities` uses the names of agenix-rekey's `age.rekey.masterIdentities`:
 
-| Form                                                                     | Meaning                                                                                                                 |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| A path, such as `./master-identities/yubikey-1.txt`                      | The identity file alone                                                                                                 |
-| An absolute path string, such as `"/home/alice/.config/age/shields.txt"` | The identity file alone, usually outside the flake root                                                                 |
-| `{ identity; pubkey; }`                                                  | The identity file, a path or an absolute path string, paired with its public key, a string; `pubkey` defaults to `null` |
+| Form                                                                     | Meaning                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A path, such as `./master-identities/yubikey-1.txt`                      | The identity file alone                                                                                                                                                     |
+| An absolute path string, such as `"/home/alice/.config/age/shields.txt"` | The identity file alone, usually outside the flake root                                                                                                                     |
+| `{ identity; pubkey; }`                                                  | The identity file, a path or an absolute path string, paired with its public key, a string starting with `age1`, `ssh-ed25519 `, or `ssh-rsa `; `pubkey` defaults to `null` |
 
 The option reads back every entry as an attribute set, a path or a string becoming `{ identity = <path or string>; pubkey = null; }`. Decryption uses only `identity`. When `pubkey` is set, `nixos-shields edit` and `rekey` encrypt to it instead of presenting the identity file, so a passphrase-protected identity or another person's YubiKey needs no prompt:
 
@@ -100,17 +100,17 @@ A YubiKey or FIDO2 identity stub needs no `pubkey`: the command-line tool [reads
 
 An identity outside the flake root is never committed or copied into the Nix store: evaluation hands its location to the builtin, and the manifest keeps it absolute. Keep plain age keys and SSH keys there, and commit only YubiKey or FIDO2 identity stubs and passphrase-protected identities under the flake root; the command-line tool [warns](cli.md#unencrypted-private-keys) about an unencrypted private key inside it. A path inside the flake is copied into the store with the flake source.
 
-A string that is not an absolute path fails evaluation.
+A string that is not an absolute path fails evaluation. So does a `pubkey` that is not a public key, such as `""`, with the message `… is not a public key: it must start with age1, ssh-ed25519, or ssh-rsa`. Nothing after the prefix is checked, so a key that agenix-rekey read from a file, ending in a newline, is accepted. The failure fails the manifest too, so `nixos-shields list` and `edit` refuse it.
 
 ### Extra encryption pubkeys
 
 `age.shields.extraEncryptionPubkeys` accepts the value of agenix-rekey's `age.rekey.extraEncryptionPubkeys`. `nixos-shields edit` and `rekey` encrypt every shield to them as well as to the master identities, so an offline backup key or a team's keys can open every shield. Neither evaluation nor the tool ever decrypts with them, so they are never prompted for.
 
-| Form                                                                                  | Meaning                                           |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| A string that is not an absolute path, such as `"age1..."` or `"ssh-ed25519 AAAA..."` | A public key                                      |
-| A path, such as `./recipients/team.txt`                                               | A recipients file, one public key per line        |
-| An absolute path string, such as `"/home/alice/.config/age/backup.pub"`               | A recipients file, usually outside the flake root |
+| Form                                                                                                                                                         | Meaning                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| A string starting with `age1`, `ssh-ed25519 `, or `ssh-rsa `, such as `"age1..."`, an age plugin key such as `"age1yubikey1..."`, or `"ssh-ed25519 AAAA..."` | A public key                                      |
+| A path, such as `./recipients/team.txt`                                                                                                                      | A recipients file, one public key per line        |
+| An absolute path string, such as `"/home/alice/.config/age/backup.pub"`                                                                                      | A recipients file, usually outside the flake root |
 
 ```nix
 age.shields.extraEncryptionPubkeys = [
@@ -118,6 +118,8 @@ age.shields.extraEncryptionPubkeys = [
   ./recipients/team.txt
 ];
 ```
+
+Any other string, such as `""` or a relative `"recipients/team.txt"`, fails evaluation with the message `… is not a public key: it must start with age1, ssh-ed25519, or ssh-rsa`, and with it the manifest, so `nixos-shields list` and `edit` refuse it. Write a recipients file as a path or an absolute path string. Nothing after a public key's prefix is checked, and a recipients file's contents are never read.
 
 A recipients file follows the same rule as a master identity: the manifest keeps one inside the flake root relative to it and one outside absolute, and never reads either.
 

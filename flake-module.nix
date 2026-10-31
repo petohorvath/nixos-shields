@@ -21,10 +21,10 @@ in
     default = config.flake.nixosConfigurations;
     defaultText = literalExpression "config.flake.nixosConfigurations";
     description = ''
-      Evaluated configurations whose shield files and master identities
-      enter the manifest. Set this when configurations live in a
-      different flake output. Configurations without the shields module
-      have no shield files.
+      Evaluated configurations whose shield files, master identities,
+      and extra encryption pubkeys enter the manifest. Set this when
+      configurations live in a different flake output. Configurations
+      without the shields module have no shield files.
     '';
   };
 
