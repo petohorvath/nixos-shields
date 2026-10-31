@@ -29,6 +29,9 @@ in
 
   internal = {
     inherit extraBuiltins;
+    # The merge of the kit's builtins with a consumer's entries, before
+    # the bundle mkNix builds hands it the files.
+    composeBuiltins = import ../packages/extra-builtins/compose.nix;
     # lib.importShield before it is applied to the running Nix's
     # builtins.
     importShield = import ../lib/import-shield.nix;

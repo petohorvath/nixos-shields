@@ -40,6 +40,7 @@
 - The development-shell Git hooks.
 - Flake-scoped shields. `flakeModules.default` loses the `shields.dir`, `shields.masterIdentities`, `shields.files`, `shields.values`, and `shields.nixosModule` options; import `nixosModules.default` in each configuration instead, and keep `shields.configurations`.
 - The `masterIdentities` and `files` arguments of `lib.mkManifest`, which now takes only `self` and `configurations`.
+- `lib.mkExtraBuiltinsFile` and the `extraBuiltinsFile` argument of `lib.mkNix`, whose combined file failed in pure evaluation; pass a consumer's builtins as `extraBuiltins` instead. The wrapped Nix's `passthru.extraBuiltinsFile` becomes `passthru.extraBuiltinsDir`.
 
 - The manifest's top-level `files` field.
 - Bare `<name>` addresses in `nixos-shields`; address every shield as `<configuration>:<name>`.
@@ -47,6 +48,7 @@
 
 ### Fixed
 
+- A consumer's own extra builtins load in pure evaluation, the mode of flake commands such as `nixos-rebuild --flake`. The documented combined file imported the kit's builtins from another store path, which nix-plugins admits only with `--impure`. `lib.mkNix` now takes the consumer's builtins as `extraBuiltins`, a list of files or directories, and copies them beside the kit's into one directory that it loads. An entry that defines `importShield`, or two entries that define one name, fail evaluation with a message naming the entry. `packages.<system>.extra-builtins` is that directory for the kit's builtins alone.
 - The nix-plugins build no longer fails with nixpkgs that patches nix-plugins for Nix 2.33 and 2.34 itself, such as `nixos-unstable` from 2026-10-27: the kit's compatibility patch replaces nixpkgs' patches instead of being applied on top of them.
 - A shield file given as an absolute path string decrypts. Before, it passed `nixos-shields list` and `edit`, then failed evaluation with `shield file must be an existing path` for a file that exists.
 - A shield file whose name does not end in `.nix.age` fails the `age.shields.files` option, so `nixos-shields list` and `edit` refuse it too, instead of only evaluation failing.

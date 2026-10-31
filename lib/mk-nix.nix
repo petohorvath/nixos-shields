@@ -11,17 +11,21 @@
       plugin patch supports.
     extraConfig: extra nix.conf lines, such as accept-flake-config; the
       kit sets no such policy. Defaults to "".
-    extraBuiltinsFile: the extra-builtins file to load; defaults to the
-      kit's file from mkExtraBuiltinsFile. A consumer's own file must
-      keep importShield by importing the kit's file.
+    extraBuiltins: the consumer's own builtins, each a path or a
+      derivation holding an extra-builtins function, as a file or as a
+      directory with a default.nix. They are merged with the kit's
+      importShield; a name the kit or an earlier entry defines fails.
+      Defaults to [ ].
 
   Returns a derivation with the wrapped binaries; its passthru holds
-  extraBuiltinsFile, nix, and the plugins it loads.
+  extraBuiltinsDir, the directory loaded as the extra-builtins file,
+  nix, and the plugins it loads.
 
   Example:
     nixos-shields.lib.mkNix {
       inherit pkgs;
       extraConfig = "accept-flake-config = true";
+      extraBuiltins = [ ./nix/extra-builtins.nix ];
     }
 */
 {
@@ -29,16 +33,21 @@
   # A concrete series, never pkgs.nix: the plugin must match its ABI.
   nix ? pkgs.nixVersions.nix_2_34,
   extraConfig ? "",
-  extraBuiltinsFile ? import ./mk-extra-builtins-file.nix { inherit pkgs; },
+  extraBuiltins ? [ ],
 }:
 let
   inherit (pkgs.lib) escapeShellArg;
 
   plugins = pkgs.callPackage ../packages/nix-plugins/package.nix { inherit nix; };
 
+  extraBuiltinsDir = pkgs.callPackage ../packages/extra-builtins/package.nix {
+    decrypt = pkgs.callPackage ../packages/decrypt/package.nix { };
+    inherit extraBuiltins;
+  };
+
   nixConfig = ''
     plugin-files = ${plugins}/lib/nix/plugins
-    extra-builtins-file = ${extraBuiltinsFile}
+    extra-builtins-file = ${extraBuiltinsDir}
     ${extraConfig}
   '';
 in
@@ -61,7 +70,7 @@ pkgs.symlinkJoin {
         --set NIX_CONFIG ${escapeShellArg nixConfig}
     done
   '';
-  passthru = { inherit extraBuiltinsFile nix plugins; };
+  passthru = { inherit extraBuiltinsDir nix plugins; };
   meta = {
     inherit (nix.meta) description license;
     mainProgram = "nix";

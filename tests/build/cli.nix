@@ -48,7 +48,7 @@ let
         kit
         nixpkgs
         nixUnit
-        nix.extraBuiltinsFile
+        nix.extraBuiltinsDir
       ]
       ++ nativeBuildInputs
       ++ builderScripts

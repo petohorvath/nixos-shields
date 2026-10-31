@@ -9,6 +9,7 @@ in
     module = import ./nixos/module.nix testContext;
   };
   packages.extra-builtins = {
+    compose = import ./packages/extra-builtins/compose.nix testContext;
     extra-builtins = import ./packages/extra-builtins/extra-builtins.nix testContext;
   };
 }
