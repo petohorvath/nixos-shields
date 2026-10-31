@@ -26,7 +26,7 @@ inputs.nixos-shields = {
 };
 ```
 
-The `treefmt-nix` input serves only the kit's development checks, so a consumer can drop it by adding `inputs.treefmt-nix.follows = "";` to the block.
+The `nix-unit` and `treefmt-nix` inputs serve only the kit's development checks, so a consumer can drop them by adding `inputs.nix-unit.follows = "";` and `inputs.treefmt-nix.follows = "";` to the block.
 
 The flake's default package is the `nixos-shields` command-line tool, and its `nix` package is the wrapped Nix:
 

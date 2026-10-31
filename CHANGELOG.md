@@ -42,7 +42,6 @@
 - Flake-scoped shields. `flakeModules.default` loses the `shields.dir`, `shields.masterIdentities`, `shields.files`, `shields.values`, and `shields.nixosModule` options; import `nixosModules.default` in each configuration instead, and keep `shields.configurations`.
 - The `masterIdentities` and `files` arguments of `lib.mkManifest`, which now takes only `self` and `configurations`.
 - `lib.mkExtraBuiltinsFile` and the `extraBuiltinsFile` argument of `lib.mkNix`, whose combined file failed in pure evaluation; pass a consumer's builtins as `extraBuiltins` instead. The wrapped Nix's `passthru.extraBuiltinsFile` becomes `passthru.extraBuiltinsDir`.
-
 - The manifest's top-level `files` field.
 - Bare `<name>` addresses in `nixos-shields`; address every shield as `<configuration>:<name>`.
 - The flake-scoped group of `nixos-shields list`, in its text output and the `files` field of its JSON output.
