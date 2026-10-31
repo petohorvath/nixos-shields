@@ -14,44 +14,70 @@ let
   importShieldWith = internal.importShield;
   importShield = importShieldWith helpers.fakeExtraBuiltins;
   noBuiltin = "nixos-shields: importShield builtin not loaded; use the wrapped Nix from lib\\.mkNix";
-  notList = "nixos-shields: the master identities must be a list of paths, absolute path strings, or \\{ identity; pubkey; }";
 
   # Master identities that break an entry-form check, keyed by the name
-  # their tests carry. Each fails at its last entry, so the message shows
-  # the position.
+  # their tests carry, with the message that names the check. Each fails
+  # at its last entry, so the message shows the position.
   badIdentities = {
-    NonList = /srv/identities/path.txt;
-    EntryOfAnotherType = [
-      /srv/identities/path.txt
-      42
-    ];
-    EntryWithoutIdentity = [
-      /srv/identities/path.txt
-      { pubkey = "age1paired"; }
-    ];
+    NonList = {
+      identities = /srv/identities/path.txt;
+      msg = "nixos-shields: the master identities must be a list of paths, absolute path strings, or \\{ identity; pubkey; }";
+    };
+    EntryOfAnotherType = {
+      identities = [
+        /srv/identities/path.txt
+        42
+      ];
+      msg = "nixos-shields: master identity entry 2 must be a path, an absolute path string, or \\{ identity; pubkey; }";
+    };
+    EntryWithoutIdentity = {
+      identities = [
+        /srv/identities/path.txt
+        { pubkey = "age1paired"; }
+      ];
+      msg = "nixos-shields: master identity entry 2 has no identity";
+    };
     # A typo such as pubKey is not silently ignored.
-    EntryWithUnknownAttribute = [
-      {
-        identity = /srv/identities/paired.txt;
-        pubKey = "age1paired";
-      }
-    ];
+    EntryWithUnknownAttribute = {
+      identities = [
+        {
+          identity = /srv/identities/paired.txt;
+          pubKey = "age1paired";
+        }
+      ];
+      msg = "nixos-shields: master identity entry 1 has the unknown attribute pubKey; it takes only identity and pubkey";
+    };
     # A paired public key follows the rule the NixOS module enforces.
-    EntryWithInvalidPubkey = [
-      /srv/identities/path.txt
-      "/srv/identities/string.txt"
-      {
-        identity = /srv/identities/paired.txt;
-        pubkey = "recipients/team.txt";
-      }
-    ];
+    EntryWithInvalidPubkey = {
+      identities = [
+        /srv/identities/path.txt
+        "/srv/identities/string.txt"
+        {
+          identity = /srv/identities/paired.txt;
+          pubkey = "recipients/team.txt";
+        }
+      ];
+      msg = "nixos-shields: the pubkey of master identity entry 3 is not a public key: it must start with age1, ssh-ed25519, or ssh-rsa";
+    };
   };
+
+  # Each bad argument fails its check with the builtin loaded.
+  badIdentitiesRejected = lib.mapAttrs' (
+    name: bad:
+    lib.nameValuePair "testRejects${name}" {
+      expr = importShield bad.identities existingShieldPath;
+      expectedError = {
+        type = "ThrownError";
+        inherit (bad) msg;
+      };
+    }
+  ) badIdentities;
 
   # The missing builtin takes priority over every entry-form check.
   badIdentitiesWithoutBuiltin = lib.mapAttrs' (
-    name: identities:
+    name: bad:
     lib.nameValuePair "test${name}FailsWithoutBuiltin" {
-      expr = importShieldWith null identities existingShieldPath;
+      expr = importShieldWith null bad.identities existingShieldPath;
       expectedError = {
         type = "ThrownError";
         msg = noBuiltin;
@@ -59,7 +85,8 @@ let
     }
   ) badIdentities;
 in
-badIdentitiesWithoutBuiltin
+badIdentitiesRejected
+// badIdentitiesWithoutBuiltin
 // {
   # A public key cannot decrypt, so only the identity of a paired entry
   # reaches the builtin.
@@ -86,46 +113,6 @@ badIdentitiesWithoutBuiltin
       /srv/identities/unpaired.txt
       "/srv/identities/paired.txt"
     ];
-  };
-
-  testRejectsNonList = {
-    expr = importShield badIdentities.NonList existingShieldPath;
-    expectedError = {
-      type = "ThrownError";
-      msg = notList;
-    };
-  };
-
-  testRejectsEntryOfAnotherType = {
-    expr = importShield badIdentities.EntryOfAnotherType existingShieldPath;
-    expectedError = {
-      type = "ThrownError";
-      msg = "nixos-shields: master identity entry 2 must be a path, an absolute path string, or \\{ identity; pubkey; }";
-    };
-  };
-
-  testRejectsEntryWithoutIdentity = {
-    expr = importShield badIdentities.EntryWithoutIdentity existingShieldPath;
-    expectedError = {
-      type = "ThrownError";
-      msg = "nixos-shields: master identity entry 2 has no identity";
-    };
-  };
-
-  testRejectsEntryWithUnknownAttribute = {
-    expr = importShield badIdentities.EntryWithUnknownAttribute existingShieldPath;
-    expectedError = {
-      type = "ThrownError";
-      msg = "nixos-shields: master identity entry 1 has the unknown attribute pubKey; it takes only identity and pubkey";
-    };
-  };
-
-  testRejectsEntryWithInvalidPubkey = {
-    expr = importShield badIdentities.EntryWithInvalidPubkey existingShieldPath;
-    expectedError = {
-      type = "ThrownError";
-      msg = "nixos-shields: the pubkey of master identity entry 3 is not a public key: it must start with age1, ssh-ed25519, or ssh-rsa";
-    };
   };
 
   # A Nix without nix-plugins has no extraBuiltins.

@@ -286,7 +286,8 @@ rage --decrypt --identity master-identities/alpha-only.txt shields/beta.nix.age 
   fail "edit omitted alpha's identity from beta's shield"
 
 cp shields/shared.nix.age "$TMPDIR/shared-before-failure.age"
-expectFailure 'editor' env EDITOR="bash '$TMPDIR/scripted editor' fail" nixos-shields edit alpha:shared
+expectFailure 'editor failed; shield left unchanged' \
+  env EDITOR="bash '$TMPDIR/scripted editor' fail" nixos-shields edit alpha:shared
 cmp shields/shared.nix.age "$TMPDIR/shared-before-failure.age" || fail "failed editor replaced the shield"
 [[ ! -e $(cat "$EDITOR_DIRECTORY") ]] || fail "failed editor left plaintext behind"
 expectFailure 'editor removed the plaintext file; shield left unchanged' \
