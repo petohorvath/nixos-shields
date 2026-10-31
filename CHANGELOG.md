@@ -25,7 +25,7 @@
 - The option `age.shields.masterIdentities` reads back each entry as `{ identity; pubkey; }`, with `pubkey = null` for an entry given as a path.
 - `packages.<system>.extra-builtins` is a directory, the kit's builtins as `lib.mkNix` loads them, instead of a file.
 - Each entry of the manifest's `masterIdentities` is an object with `identity`, the location, and `pubkey`, a public key or `null`, instead of a location string. Two configurations pairing one identity with different public keys fail evaluation.
-- The `importShield` builtin owns every check on its arguments and rejects an empty identity list itself; its messages start with `nixos-shields:` instead of `importShield:`. Without the builtin, `lib.importShield` fails only with the message naming `lib.mkNix`, even for a missing shield file.
+- The `importShield` builtin checks the locations it receives, the identity files and the shield file, and rejects an empty identity list itself; `lib.importShield` checks the master identity entry forms, with messages giving the entry's position, before handing the identity files to the builtin. Every message starts with `nixos-shields:` instead of `importShield:`. Without the builtin, `lib.importShield` fails only with the message naming `lib.mkNix`, even for bad entries or a missing shield file.
 - `nixos-shields list` headings name each configuration as `Configuration <name>:`.
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are the flake checks `treefmt` and `lint`, run by `nix flake check` and CI. `nix fmt` runs treefmt-nix with nixfmt, deadnix, prettier, shfmt, shellcheck, and actionlint instead of nixfmt-tree.
