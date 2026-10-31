@@ -45,6 +45,41 @@ let
       };
     };
 
+  # A master identity paired with the public key.
+  pairedWith = pubkey: {
+    age.shields.masterIdentities = [
+      {
+        identity = /srv/identities/paired.txt;
+        inherit pubkey;
+      }
+    ];
+  };
+
+  # One public key of each kind the rule accepts.
+  publicKeys = [
+    "age1backup"
+    "age1yubikey1backup"
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI backup"
+    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ backup"
+    "age1backup\n"
+  ];
+
+  publicKeyError = option: {
+    type = "ThrownError";
+    msg = "age\\.shields\\.${option}.*is not a public key: it must start with age1, ssh-ed25519, or ssh-rsa";
+  };
+
+  rejectedExtraEncryptionPubkey = value: {
+    expr =
+      (evalNixosModule [ { age.shields.extraEncryptionPubkeys = [ value ]; } ]).extraEncryptionPubkeys;
+    expectedError = publicKeyError "extraEncryptionPubkeys";
+  };
+
+  rejectedPubkey = pubkey: {
+    expr = (evalNixosModule [ (pairedWith pubkey) ]).masterIdentities;
+    expectedError = publicKeyError "masterIdentities.*pubkey'";
+  };
+
   missingFile.age.shields.files.facts = /srv/shields/missing.nix.age;
 in
 {
@@ -134,6 +169,32 @@ in
     ];
   };
 
+  # agenix-rekey reads a public key file as it is, newline included.
+  testMasterIdentitiesAcceptAgenixRekeyPubkeyRead = {
+    expr =
+      (evalNixosModule [
+        agenixRekeyOptions
+        (
+          { config, ... }:
+          {
+            age.rekey.masterIdentities = [
+              {
+                identity = /srv/identities/paired.txt;
+                pubkey = "age1paired\n";
+              }
+            ];
+            age.shields.masterIdentities = config.age.rekey.masterIdentities;
+          }
+        )
+      ]).masterIdentities;
+    expected = [
+      {
+        identity = "/srv/identities/paired.txt";
+        pubkey = "age1paired\n";
+      }
+    ];
+  };
+
   testMasterIdentitiesRejectRelativeString = {
     expr =
       (evalNixosModule [
@@ -145,25 +206,41 @@ in
     };
   };
 
+  # Every kind of public key reads back as given, newline included.
+  testMasterIdentityPubkeyReadsBack = {
+    expr = map (pubkey: (evalNixosModule [ (pairedWith pubkey) ]).masterIdentities) publicKeys;
+    expected = map (pubkey: [
+      {
+        identity = /srv/identities/paired.txt;
+        inherit pubkey;
+      }
+    ]) publicKeys;
+  };
+  testMasterIdentityPubkeyRejectEmptyString = rejectedPubkey "";
+  testMasterIdentityPubkeyRejectRelativeString = rejectedPubkey "recipients/team.txt";
+  testMasterIdentityPubkeyRejectOtherPrefix = rejectedPubkey "ssh-dss AAAAB3NzaC1kc3MAAACBAP backup";
+
   # Public keys and recipients files, as paths or absolute strings, read
   # back as given.
   testExtraEncryptionPubkeysReadBack = {
     expr =
       (evalNixosModule [
         {
-          age.shields.extraEncryptionPubkeys = [
-            "age1backup"
+          age.shields.extraEncryptionPubkeys = publicKeys ++ [
             /srv/recipients/backup.txt
             "/srv/recipients/team.txt"
           ];
         }
       ]).extraEncryptionPubkeys;
-    expected = [
-      "age1backup"
+    expected = publicKeys ++ [
       /srv/recipients/backup.txt
       "/srv/recipients/team.txt"
     ];
   };
+  testExtraEncryptionPubkeysRejectEmptyString = rejectedExtraEncryptionPubkey "";
+  # A recipients file must be a path or an absolute string.
+  testExtraEncryptionPubkeysRejectRelativeString = rejectedExtraEncryptionPubkey "recipients/team.txt";
+  testExtraEncryptionPubkeysRejectOtherPrefix = rejectedExtraEncryptionPubkey "ssh-dss AAAAB3NzaC1kc3MAAACBAP backup";
 
   testDirReadsBack = {
     expr = (evalNixosModule [ { age.shields.dir = /srv/shields; } ]).dir;
