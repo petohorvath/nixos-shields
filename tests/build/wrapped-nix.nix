@@ -2,7 +2,9 @@
   The wrapped Nix, driven from where a consumer stands, inside the
   build sandbox (seam 1 of the spec's testing decisions): the multi-call
   binaries, then the library function on a fixture made at check time,
-  directly and through a consumer's combined extra-builtins file. The cli
+  directly and through a consumer's combined extra-builtins file, and
+  the builtin with string arguments. The builtin's checks and the
+  identities lib.importShield hands it are in the unit suites. The cli
   test evaluates the example consumer.
 
   The sandbox's store directory is group-writable, so the check opens a
@@ -73,31 +75,16 @@ pkgs.runCommand "nixos-shields-wrapped-nix"
     [[ $actual == "$expected" ]] \
       || fail "decrypted value was $actual, expected $expected"
 
-    # The attribute set entry form decrypts with its identity alone, the
-    # identity given as a path or, as agenix-rekey gives it, a string.
-    pubkey=$(rage-keygen -y identity.txt)
-    for identity in "$TMPDIR/identity.txt" "\"$TMPDIR/identity.txt\""; do
-      entries="[ { identity = $identity; pubkey = \"$pubkey\"; } ]"
-      entryShield="$lib.importShield $entries $TMPDIR/fixture.nix.age"
-      actual=$(evalJson nix "$entryShield" | jq -cS .)
-      [[ $actual == "$expected" ]] \
-        || fail "decrypting with $entries returned $actual, expected $expected"
-    done
-
-    # The builtin itself takes an identity as an absolute path string,
-    # and rejects a relative one.
+    # Real exec takes a shield file given as an absolute path string, as
+    # it takes an identity one. The fake exec of the unit suites cannot
+    # show this.
     builtin="builtins.extraBuiltins.importShield"
-    stringShield="$builtin [ \"$TMPDIR/identity.txt\" ] $TMPDIR/fixture.nix.age"
+    stringShield="$builtin [ \"$TMPDIR/identity.txt\" ]"
+    stringShield+=" \"$TMPDIR/fixture.nix.age\""
     actual=$(evalJson nix "$stringShield" | jq -cS .)
     [[ $actual == "$expected" ]] \
-      || fail "the builtin returned $actual for a string identity," \
+      || fail "the builtin returned $actual for string arguments," \
         "expected $expected"
-    relativeShield="$builtin [ \"identity.txt\" ] $TMPDIR/fixture.nix.age"
-    if evalJson nix "$relativeShield" 2> relative.log; then
-      fail "the builtin accepted a relative identity string"
-    fi
-    grep -q 'absolute path strings' relative.log \
-      || fail "relative identity failure was: $(cat relative.log)"
 
     # A consumer's own extra-builtins file keeps both its additions
     # and importShield when handed to lib.mkNix.

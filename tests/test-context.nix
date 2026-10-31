@@ -18,13 +18,28 @@ let
   # The age.shields options of a configuration built from the modules
   # alone.
   evalConfiguration = modules: (lib.evalModules { inherit modules; }).config.age.shields;
+
+  # The kit's extra-builtins file from source, before nix-plugins hands
+  # it exec. The source still holds the @decrypt@ placeholder.
+  extraBuiltins = import ../packages/extra-builtins/extra-builtins.nix;
 in
 {
   inherit fixtures lib self;
   shieldsLib = import ../lib;
 
+  internal = {
+    inherit extraBuiltins;
+    # lib.importShield before it is applied to the running Nix's
+    # builtins.
+    importShield = import ../lib/import-shield.nix;
+  };
+
   helpers = {
     inherit evalConfiguration;
+
+    # The builtins with an exec that returns its argv instead of running
+    # it, so a suite sees the checks and the command they would run.
+    fakeExtraBuiltins = extraBuiltins { exec = argv: argv; };
 
     # As evalConfiguration, with the NixOS module imported too.
     evalNixosModule = modules: evalConfiguration ([ ../nixos/module.nix ] ++ modules);
