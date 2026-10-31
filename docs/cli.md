@@ -9,10 +9,10 @@ nix shell github:petohorvath/nixos-shields
 ```console
 $ nixos-shields --help
 Usage: nixos-shields [--flake <directory>] <command>
-  list [--json] [--configuration <name>]
-  edit <address>                         Edit with $EDITOR
+  list [--json] [--configuration <name>]  List declared shields and their status
+  edit <address>                          Edit with $EDITOR
   rekey [--identity <file>]               Encrypt to all master identities
-  clean                                 Remove the user's decrypt cache
+  clean                                   Remove the user's decrypt cache
 ```
 
 ## Flake selection

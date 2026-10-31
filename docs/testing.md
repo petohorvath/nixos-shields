@@ -49,12 +49,15 @@ The integration suites:
 
 ## `build-cli`
 
-The check copies the [example consumer](../examples/consumer) into a writable directory and drives the packaged tool. It covers:
+The check copies the [example consumer](../examples/consumer) into a writable directory and drives the packaged tool. It asserts every refusal of the tool by its message, and covers:
 
+- the `--help` text, and the refusals that need no manifest: no command, an unknown command or option, an option without a value, `--json`, `--configuration`, or `--identity` on a command that does not take it, `edit` without an address or with two, `list`, `rekey`, or `clean` with one, and `--flake` naming a directory without `flake.nix`
+- a hand-written manifest whose shield file is absolute or leads out of the checkout through a symlink
+- refusals that leave every shield file untouched and never start the editor: `edit` without `EDITOR`, `edit` on a declared shield file that is a directory, `edit` with `TMPDIR` inside the checkout, `rekey` with a declared shield file missing, `rekey --identity` with an identity that does not exist, no master identity declared, a master identity without a paired public key that does not exist, and a recipients file that does not exist
 - text and JSON listings without a flake-scoped group, configuration filtering, and local directory selection
 - shield values reaching `alpha`'s ordinary options and a deploy-rs-shaped output, and `beta` failing with its missing shield file's location
 - one shield file declared by both configurations, readable through each after `edit` and `rekey`
-- unchanged and changed edits, creating a missing shield, editor failure, bare addresses failing as unknown, and temporary-file cleanup
+- unchanged and changed edits, creating a missing shield, editor failure and an editor removing the plaintext file, each leaving the shield file byte-identical, bare addresses failing as unknown, and temporary-file cleanup
 - encryption to all master identities, including one that only `alpha` declares, and rotation to a second identity verified through the wrapped Nix
 - a passphrase-protected identity paired with its public key in the manifest, which `edit` and `rekey` encrypt to without a prompt and whose key then opens every shield
 - `rekey` decrypting with every master identity when the first cannot open the shields
@@ -83,6 +86,8 @@ The check drives the decrypt script directly with a throwaway master identity an
 - a hit ignoring the primary identity variables
 - a failed decryption leaving no partial file
 - `--clean` removing the decrypt cache and accepting one already removed, and refusing a symlink and a directory containing the home directory, the current directory, or a directory given to it, each case tripping only its own refusal
+
+The script's refusal of a decrypt cache owned by another user stays untested, because the build sandbox cannot create a directory that another user owns.
 
 ## `build-wrapped-nix`
 
