@@ -10,14 +10,13 @@ The table lists the consumer-facing outputs. The `checks`, `devShells`, `formatt
 | ---------------------------------- | ----------------------------------------------------------------------------- |
 | `lib.importShield`                 | Decrypts one shield file                                                      |
 | `lib.mkNix`                        | Builds a wrapped Nix                                                          |
-| `lib.mkExtraBuiltinsFile`          | Builds the kit's extra-builtins file                                          |
 | `lib.mkManifest`                   | Builds the manifest for plain flakes                                          |
 | `nixosModules.default`             | The `age.shields` NixOS module                                                |
 | `flakeModules.default`             | The flake-parts module                                                        |
 | `packages.<system>.default`        | The `nixos-shields` command-line tool, also `packages.<system>.nixos-shields` |
 | `packages.<system>.nix`            | The wrapped Nix with default arguments                                        |
 | `packages.<system>.nix-plugins`    | The nix-plugins build the wrapped Nix loads                                   |
-| `packages.<system>.extra-builtins` | The kit's extra-builtins file                                                 |
+| `packages.<system>.extra-builtins` | The kit's extra-builtins directory, which the wrapped Nix loads               |
 | `packages.<system>.decrypt`        | The decrypt script behind the builtin and the command-line tool               |
 
 ## Library functions
@@ -36,18 +35,14 @@ nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/b
 
 `mkNix` returns a Nix binary set whose every invocation loads the shield builtin. Each binary is wrapped individually with `NIX_CONFIG` set for that process only and argv[0] preserved, so `nix-store`, `nix-build`, and the other multi-call binaries keep their behaviour and nothing is exported into the caller's shell.
 
-| Argument            | Default                                     | Meaning                                                                                             |
-| ------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `pkgs`              | required                                    | The package set to build with                                                                       |
-| `nix`               | `pkgs.nixVersions.nix_2_34`                 | The Nix package to wrap; a concrete series, never `pkgs.nix`, because the plugin must match its ABI |
-| `extraConfig`       | `""`                                        | Extra `nix.conf` lines, such as `accept-flake-config = true`; the kit sets no such policy itself    |
-| `extraBuiltinsFile` | `lib.mkExtraBuiltinsFile { inherit pkgs; }` | The extra-builtins file to load; a replacement must keep `importShield` by importing the kit's file |
+| Argument        | Default                     | Meaning                                                                                             |
+| --------------- | --------------------------- | --------------------------------------------------------------------------------------------------- |
+| `pkgs`          | required                    | The package set to build with                                                                       |
+| `nix`           | `pkgs.nixVersions.nix_2_34` | The Nix package to wrap; a concrete series, never `pkgs.nix`, because the plugin must match its ABI |
+| `extraConfig`   | `""`                        | Extra `nix.conf` lines, such as `accept-flake-config = true`; the kit sets no such policy itself    |
+| `extraBuiltins` | `[ ]`                       | The consumer's own [extra builtins](#extra-builtins), merged with `importShield`                    |
 
-The result's `passthru` holds `extraBuiltinsFile`, `nix`, and `plugins`.
-
-### `lib.mkExtraBuiltinsFile`
-
-`mkExtraBuiltinsFile { pkgs }` builds the kit's extra-builtins file, which defines `importShield`.
+The result's `passthru` holds `nix`, `plugins`, and `extraBuiltinsDir`, the directory loaded as the `extra-builtins-file`.
 
 ### `lib.mkManifest`
 
@@ -169,27 +164,28 @@ For the [example consumer](../examples/consumer), `nix eval --json .#shields` re
 }
 ```
 
-## Wrapped Nix
+## Extra builtins
 
-Nix has one `extra-builtins-file` setting. A consumer with builtins of its own builds the kit's file, imports it with the arguments nix-plugins supplies, merges its own builtins into the returned attribute set, and hands the combined file to `lib.mkNix`:
+Nix has one `extra-builtins-file` setting, so `lib.mkNix` merges a consumer's builtins with the kit's. Each entry of `extraBuiltins` is a path or a derivation holding an extra-builtins function, the form nix-plugins loads: a function from `{ exec, importNative }` to an attribute set of builtins. An entry is a file, or a directory whose `default.nix` holds the function. A string that names no store path, such as `"/home/alice/builtins.nix"`, fails evaluation, since a change to the file would not rebuild the wrapped Nix.
 
 ```nix
-let
-  kitBuiltins = nixos-shields.lib.mkExtraBuiltinsFile { inherit pkgs; };
-  combinedBuiltins = pkgs.writeText "extra-builtins.nix" ''
-    args:
-    (import ${kitBuiltins} args) // {
-      consumerAnswer = 42;
-    }
-  '';
-in
-nixos-shields.lib.mkNix {
-  inherit pkgs;
-  extraBuiltinsFile = combinedBuiltins;
+# nix/extra-builtins.nix
+{ exec, ... }:
+{
+  consumerAnswer = 42;
 }
 ```
 
-The result exposes both `builtins.extraBuiltins.importShield` and `builtins.extraBuiltins.consumerAnswer`. Give additions distinct names so they do not replace the kit's builtin.
+```nix
+nixos-shields.lib.mkNix {
+  inherit pkgs;
+  extraBuiltins = [ ./nix/extra-builtins.nix ];
+}
+```
+
+The result exposes both `builtins.extraBuiltins.importShield` and `builtins.extraBuiltins.consumerAnswer`. Evaluation fails with a message giving the entry's position and name when an entry defines `importShield`, or when two entries define one name.
+
+In pure evaluation, the mode of flake commands such as `nixos-rebuild --flake`, nix-plugins admits only files inside the `extra-builtins-file` path. `lib.mkNix` therefore copies the kit's builtins and every entry into one directory and loads that. An entry can import files inside it, such as a directory entry's other files, but not another store path, such as `${pkgs.hello}/lib.nix`.
 
 ## Nix version and plugin ABI
 

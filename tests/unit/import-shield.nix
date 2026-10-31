@@ -45,7 +45,8 @@ in
       msg = noBuiltin;
     };
   };
-  # Another extra-builtins file can be loaded instead of the kit's.
+  # A Nix with nix-plugins can load an extra-builtins file other than the
+  # kit's.
   testFailsWithoutImportShield = {
     expr = importShieldWith { consumerAnswer = 42; } [ /srv/identities/path.txt ] existingShieldPath;
     expectedError = {

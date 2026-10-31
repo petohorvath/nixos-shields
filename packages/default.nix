@@ -8,6 +8,6 @@ in
 {
   inherit decrypt nix nixos-shields;
   nix-plugins = nix.plugins;
-  extra-builtins = nix.extraBuiltinsFile;
+  extra-builtins = nix.extraBuiltinsDir;
   default = nixos-shields;
 }

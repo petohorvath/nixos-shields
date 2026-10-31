@@ -1,11 +1,8 @@
 /*
-  The kit's extra-builtins file, loaded by nix-plugins on every
-  invocation of the wrapped Nix. `@decrypt@` becomes the cache script's
-  store path at build time. A consumer composes it with other builtins
-  by importing the built file and merging:
-
-    let kit = nixos-shields.lib.mkExtraBuiltinsFile { inherit pkgs; };
-    in args: (import kit args) // { mine = ...; }
+  The kit's builtins, loaded by nix-plugins on every invocation of the
+  wrapped Nix as kit.nix of the extra-builtins bundle, which merges them
+  with a consumer's own through compose.nix. `@decrypt@` becomes the
+  cache script's store path at build time.
 */
 { exec, ... }:
 let

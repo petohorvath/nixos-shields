@@ -258,7 +258,7 @@ pkgs.mkShellNoCC {
 }
 ```
 
-Keep these overrides in the consumer; they are not kit outputs. The recipe overrides the nixpkgs packages; a tool's own flake may expose different override arguments. `lib.mkNix` also accepts extra `nix.conf` lines and a combined extra-builtins file for consumers with builtins of their own, as described in [Wrapped Nix](docs/reference.md#wrapped-nix).
+Keep these overrides in the consumer; they are not kit outputs. The recipe overrides the nixpkgs packages; a tool's own flake may expose different override arguments. `lib.mkNix` also accepts extra `nix.conf` lines and a consumer's own builtins, as described in [Extra builtins](docs/reference.md#extra-builtins).
 
 ## Decrypt cache
 

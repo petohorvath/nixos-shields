@@ -27,7 +27,10 @@
         inputs = removeAttrs inputs [ "self" ];
         enableSystemAgnostic = false;
         tests = {
-          unit = import ../tests/unit { inherit (inputs) nixpkgs; };
+          unit = import ../tests/unit {
+            inherit pkgs;
+            inherit (inputs) nixpkgs;
+          };
           integration = import ../tests/integration { inherit (inputs) flake-parts nixpkgs self; };
         };
       };
