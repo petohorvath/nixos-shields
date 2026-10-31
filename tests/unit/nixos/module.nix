@@ -207,7 +207,7 @@ in
   };
 
   # Every kind of public key reads back as given, newline included.
-  testMasterIdentityPubkeyReadsBack = {
+  testMasterIdentitiesPubkeysReadBack = {
     expr = map (pubkey: (evalNixosModule [ (pairedWith pubkey) ]).masterIdentities) publicKeys;
     expected = map (pubkey: [
       {
@@ -216,9 +216,9 @@ in
       }
     ]) publicKeys;
   };
-  testMasterIdentityPubkeyRejectEmptyString = rejectedPubkey "";
-  testMasterIdentityPubkeyRejectRelativeString = rejectedPubkey "recipients/team.txt";
-  testMasterIdentityPubkeyRejectOtherPrefix = rejectedPubkey "ssh-dss AAAAB3NzaC1kc3MAAACBAP backup";
+  testMasterIdentitiesRejectEmptyStringPubkey = rejectedPubkey "";
+  testMasterIdentitiesRejectRelativeStringPubkey = rejectedPubkey "recipients/team.txt";
+  testMasterIdentitiesRejectOtherPrefixPubkey = rejectedPubkey "ssh-dss AAAAB3NzaC1kc3MAAACBAP backup";
 
   # Public keys and recipients files, as paths or absolute strings, read
   # back as given.
