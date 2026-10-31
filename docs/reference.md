@@ -193,7 +193,7 @@ The result exposes both `builtins.extraBuiltins.importShield` and `builtins.extr
 
 The shield builtin is provided by [nix-plugins](https://github.com/shlevy/nix-plugins), which must be compiled against the exact Nix that loads it. The kit builds it against the Nix 2.34 series from nixpkgs (`nixVersions.nix_2_34`). This ABI requirement is why the kit supplies a wrapped Nix together with the matching plugin, rather than loading the plugin into an arbitrary system Nix.
 
-A [compatibility patch](../packages/nix-plugins/nix-2.34.patch) is carried in the kit until an upstream nix-plugins release builds against that Nix. A newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
+A [compatibility patch](../packages/nix-plugins/nix-2.34.patch) is carried in the kit until an upstream nix-plugins release builds against that Nix. It replaces the patches of nixpkgs' nix-plugins, which in newer nixpkgs carry the same upstream fixes, so the plugin builds from the same source under every nixpkgs. The build fails with a message naming the patch when nixpkgs moves to another nix-plugins release; a newer Nix or a newer nix-plugins may make the patch unnecessary, or need new hunks.
 
 ## Primary identity
 

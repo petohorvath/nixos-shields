@@ -45,6 +45,7 @@
 
 ### Fixed
 
+- The nix-plugins build no longer fails with nixpkgs that patches nix-plugins for Nix 2.33 and 2.34 itself, such as `nixos-unstable` from 2026-10-27: the kit's compatibility patch replaces nixpkgs' patches instead of being applied on top of them.
 - A failed decryption no longer leaves a partial file, which may hold plaintext, in the decrypt cache.
 
 ## 0.1.0 - 2026-09-14
