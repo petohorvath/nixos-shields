@@ -30,7 +30,7 @@
 - Unit tests run under nix-unit and can be run directly from the development shell.
 - Formatting and lint are the flake checks `treefmt` and `lint`, run by `nix flake check` and CI. `nix fmt` runs treefmt-nix with nixfmt, deadnix, prettier, shfmt, shellcheck, and actionlint instead of nixfmt-tree.
 - The tests follow the devnix-labs test layout. The nix-unit suites import the kit from source and run as the `nix-unit` check, through nix-unit's flake-parts module, instead of the `tests` check; a new `flake-outputs` suite checks that the flake exposes the same code. The `cli`, `decrypt-cache`, and `integration` checks are renamed `build-cli`, `build-decrypt-cache`, and `build-wrapped-nix`, and a `package-<name>` check builds each package. Run the suites directly with `nix-unit --flake .#tests.systems.<system>`.
-- The `nixpkgs` input tracks `nixos-26.05` instead of `nixos-unstable`, locked to the nixos-project-policy v0.5.1 stable pin; consumers that do not make it follow their own nixpkgs get the stable release.
+- The `nixpkgs` input tracks `nixos-26.05` instead of `nixos-unstable`, locked to the nixos-project-policy v0.6 stable pin; consumers that do not make it follow their own nixpkgs get the stable release.
 - CI calls the shared project policy `v0.6` workflow instead of its own. It runs on x86_64-linux and aarch64-linux and tests the locked nixpkgs and the policy's stable and unstable pins; the required statuses become `Policy / Check (<system>)` and `Policy / Tests (locked|stable|unstable, <system>)`. There are no VM tests, so no `Policy / VM tests (locked|stable|unstable, <system>)` status is required.
 
 ### Removed
