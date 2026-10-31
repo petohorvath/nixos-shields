@@ -13,7 +13,12 @@
 let
   inherit (builtins)
     any
+    concatStringsSep
+    elemAt
+    genList
     isString
+    length
+    replaceStrings
     stringLength
     substring
     ;
@@ -25,9 +30,18 @@ let
   ];
 
   hasPrefix = prefix: string: substring 0 (stringLength prefix) string == prefix;
+
+  # The prefixes as the message lists them, without the space that ends
+  # an SSH key type: "age1, ssh-ed25519, or ssh-rsa".
+  listedPrefixes =
+    let
+      names = map (prefix: replaceStrings [ " " ] [ "" ] prefix) prefixes;
+      lastIndex = length names - 1;
+    in
+    "${concatStringsSep ", " (genList (elemAt names) lastIndex)}, or ${elemAt names lastIndex}";
 in
 {
   isPublicKey = value: isString value && any (prefix: hasPrefix prefix value) prefixes;
 
-  notPublicKeyMessage = "is not a public key: it must start with age1, ssh-ed25519, or ssh-rsa";
+  notPublicKeyMessage = "is not a public key: it must start with ${listedPrefixes}";
 }

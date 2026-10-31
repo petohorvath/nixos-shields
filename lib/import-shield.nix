@@ -59,8 +59,9 @@ let
   assertEntry =
     position: entry:
     let
-      label = "nixos-shields: master identity entry ${toString position}";
-      unknown = filter (name: name != "identity" && name != "pubkey") (attrNames entry);
+      entryName = "master identity entry ${toString position}";
+      label = "nixos-shields: ${entryName}";
+      unknownAttributes = filter (name: name != "identity" && name != "pubkey") (attrNames entry);
     in
     if isPath entry || isString entry then
       true
@@ -68,10 +69,10 @@ let
       throw "${label} must be a path, an absolute path string, or { identity; pubkey; }"
     else if !(entry ? identity) then
       throw "${label} has no identity"
-    else if unknown != [ ] then
-      throw "${label} has the unknown attribute ${head unknown}; it takes only identity and pubkey"
+    else if unknownAttributes != [ ] then
+      throw "${label} has the unknown attribute ${head unknownAttributes}; it takes only identity and pubkey"
     else if (entry.pubkey or null) != null && !isPublicKey entry.pubkey then
-      throw "nixos-shields: the pubkey of master identity entry ${toString position} ${notPublicKeyMessage}"
+      throw "nixos-shields: the pubkey of ${entryName} ${notPublicKeyMessage}"
     else
       true;
 
