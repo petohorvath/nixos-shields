@@ -14,7 +14,8 @@
     extraBuiltins: the consumer's own builtins, each a path or a
       derivation holding an extra-builtins function, as a file or as a
       directory with a default.nix. They are merged with the kit's
-      importShield; a name the kit or an earlier entry defines fails.
+      importShield; a name the kit or an earlier entry defines fails,
+      as does a string that names no store path.
       Defaults to [ ].
 
   Returns a derivation with the wrapped binaries; its passthru holds

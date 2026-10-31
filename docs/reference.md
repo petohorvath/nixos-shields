@@ -42,7 +42,7 @@ nixos-shields.lib.importShield [ ./master-identities/yubikey-1.txt ] ./shields/b
 | `extraConfig`   | `""`                        | Extra `nix.conf` lines, such as `accept-flake-config = true`; the kit sets no such policy itself    |
 | `extraBuiltins` | `[ ]`                       | The consumer's own [extra builtins](#extra-builtins), merged with `importShield`                    |
 
-The result's `passthru` holds `extraBuiltinsDir`, the directory loaded as the `extra-builtins-file`, and `nix` and `plugins`.
+The result's `passthru` holds `nix`, `plugins`, and `extraBuiltinsDir`, the directory loaded as the `extra-builtins-file`.
 
 ### `lib.mkManifest`
 
@@ -166,7 +166,7 @@ For the [example consumer](../examples/consumer), `nix eval --json .#shields` re
 
 ## Extra builtins
 
-Nix has one `extra-builtins-file` setting, so `lib.mkNix` merges a consumer's builtins with the kit's. Each entry of `extraBuiltins` is a path or a derivation holding an extra-builtins function, the form nix-plugins loads: a function from `{ exec, importNative }` to an attribute set of builtins. An entry is a file, or a directory whose `default.nix` holds the function.
+Nix has one `extra-builtins-file` setting, so `lib.mkNix` merges a consumer's builtins with the kit's. Each entry of `extraBuiltins` is a path or a derivation holding an extra-builtins function, the form nix-plugins loads: a function from `{ exec, importNative }` to an attribute set of builtins. An entry is a file, or a directory whose `default.nix` holds the function. A string that names no store path, such as `"/home/alice/builtins.nix"`, fails evaluation, since a change to the file would not rebuild the wrapped Nix.
 
 ```nix
 # nix/extra-builtins.nix
@@ -183,7 +183,7 @@ nixos-shields.lib.mkNix {
 }
 ```
 
-The result exposes both `builtins.extraBuiltins.importShield` and `builtins.extraBuiltins.consumerAnswer`. Evaluation fails with a message naming the entry when an entry defines `importShield`, or when two entries define one name.
+The result exposes both `builtins.extraBuiltins.importShield` and `builtins.extraBuiltins.consumerAnswer`. Evaluation fails with a message giving the entry's position and name when an entry defines `importShield`, or when two entries define one name.
 
 In pure evaluation, the mode of flake commands such as `nixos-rebuild --flake`, nix-plugins admits only files inside the `extra-builtins-file` path. `lib.mkNix` therefore copies the kit's builtins and every entry into one directory and loads that. An entry can import files inside it, such as a directory entry's other files, but not another store path, such as `${pkgs.hello}/lib.nix`.
 

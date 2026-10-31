@@ -3,7 +3,10 @@
 # failures for a name the kit reserves or two entries share.
 { internal, ... }:
 let
-  inherit (internal) composeBuiltins extraBuiltins;
+  inherit (internal) composeBuiltins;
+
+  # The kit's extra-builtins function, from source.
+  kit = internal.extraBuiltins;
 
   # The arguments nix-plugins supplies, with an exec that returns its
   # argv instead of running it.
@@ -12,7 +15,7 @@ let
     importNative = _: _: null;
   };
 
-  compose = extras: composeBuiltins extraBuiltins extras args;
+  compose = extras: composeBuiltins kit extras args;
 in
 {
   testKitAloneDefinesImportShield = {
@@ -61,14 +64,15 @@ in
     ]);
     expectedError = {
       type = "ThrownError";
-      msg = "nixos-shields: extra builtins shadow\\.nix define importShield, which the kit reserves";
+      msg = "nixos-shields: extra builtins entry 1 \\(shadow\\.nix\\) defines importShield, which the kit reserves";
     };
   };
 
+  # Entries can share a name, so failures give each entry's position.
   testRejectsEntriesDefiningOneName = {
     expr = builtins.attrNames (compose [
       {
-        name = "first.nix";
+        name = "builtins";
         builtins = _: { answer = 41; };
       }
       {
@@ -76,13 +80,13 @@ in
         builtins = _: { other = 0; };
       }
       {
-        name = "second.nix";
+        name = "builtins";
         builtins = _: { answer = 42; };
       }
     ]);
     expectedError = {
       type = "ThrownError";
-      msg = "nixos-shields: extra builtins first\\.nix and second\\.nix both define answer";
+      msg = "nixos-shields: extra builtins entries 1 \\(builtins\\) and 3 \\(builtins\\) both define answer";
     };
   };
 }

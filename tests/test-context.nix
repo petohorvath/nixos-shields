@@ -3,11 +3,13 @@
   from source, and helpers that evaluate its modules without the
   builtin, as a consumer would. Each eval helper takes the list of
   modules to evaluate with. flake-parts and self are null for the unit
-  suites.
+  suites, and pkgs, the package set of the system under test, is null
+  for the integration suites.
 */
 {
   flake-parts ? null,
   nixpkgs,
+  pkgs ? null,
   self ? null,
 }:
 let
@@ -24,7 +26,12 @@ let
   extraBuiltins = import ../packages/extra-builtins/extra-builtins.nix;
 in
 {
-  inherit fixtures lib self;
+  inherit
+    fixtures
+    lib
+    pkgs
+    self
+    ;
   shieldsLib = import ../lib;
 
   internal = {

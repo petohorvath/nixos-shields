@@ -4,9 +4,9 @@
   binaries, then the library function on a fixture made at check time,
   with the kit's builtins alone and beside a consumer's extra builtins,
   the builtin with string arguments, and the consumer's builtins in pure
-  evaluation. The builtin's checks and the
-  identities lib.importShield hands it are in the unit suites. The cli
-  test evaluates the example consumer.
+  evaluation. The builtin's checks and the identities lib.importShield
+  hands it are in the unit suites. The cli test evaluates the example
+  consumer.
 
   The sandbox's store directory is group-writable, so the check opens a
   Nix store whose physical directory is that one and whose database lives
@@ -16,20 +16,17 @@
 let
   inherit (inputs.self.packages.${pkgs.stdenv.hostPlatform.system}) nix;
 
-  /*
-    A consumer's builtins: a file, and a directory whose default.nix
-    imports a file beside it, which only the bundle's copy can reach in
-    pure evaluation.
-  */
+  # A consumer's builtins: a file, and a directory of symlinks whose
+  # default.nix imports a file beside it, which pure evaluation reaches
+  # only through the bundle's copy.
   composedNix = inputs.self.lib.mkNix {
     inherit pkgs;
     extraBuiltins = [
       (pkgs.writeText "answer.nix" "_: { consumerAnswer = 42; }")
-      (pkgs.runCommand "greeting" { } ''
-        mkdir "$out"
-        echo '_: { consumerGreeting = import ./greeting.nix; }' > "$out/default.nix"
-        echo '"hello"' > "$out/greeting.nix"
-      '')
+      (pkgs.linkFarm "greeting" {
+        "default.nix" = pkgs.writeText "default.nix" "_: { consumerGreeting = import ./greeting.nix; }";
+        "greeting.nix" = pkgs.writeText "greeting.nix" ''"hello"'';
+      })
     ];
   };
 
