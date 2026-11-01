@@ -32,10 +32,14 @@ let
     hasSuffix
     mapAttrs
     mkOption
+    mkOptionType
+    showOption
     types
     ;
+  inherit (lib.options) mergeEqualOption showDefs;
 
   importShield = import ../lib/import-shield.nix (builtins.extraBuiltins or null);
+  inherit (import ../lib/public-key.nix) isPublicKey notPublicKeyMessage;
 
   cfg = config.age.shields;
 
@@ -43,6 +47,28 @@ let
   # it list and edit, refuse a name the builtin would.
   shieldFileType = types.addCheck types.path (file: hasSuffix ".nix.age" (baseNameOf file)) // {
     description = "path whose name ends in .nix.age";
+  };
+
+  /*
+    A string satisfying the public-key rule. Any string passes the type
+    check and a bad one fails on merge instead, so the failure states
+    the rule and `types.either types.path` still takes an absolute
+    string as a path.
+  */
+  publicKeyType = mkOptionType {
+    name = "publicKey";
+    description = "public key";
+    descriptionClass = "noun";
+    check = builtins.isString;
+    merge =
+      loc: defs:
+      let
+        key = mergeEqualOption loc defs;
+      in
+      if isPublicKey key then
+        key
+      else
+        throw "A definition for option `${showOption loc}' ${notPublicKeyMessage}. Definition values:${showDefs defs}";
   };
 
   # The shape of agenix-rekey's age.rekey.masterIdentities entries, so a
@@ -54,10 +80,11 @@ let
         description = "The age identity file, a path or an absolute path.";
       };
       pubkey = mkOption {
-        type = types.nullOr types.str;
+        type = types.nullOr publicKeyType;
         default = null;
         description = ''
-          The identity's public key. When set, the command-line tool
+          The identity's public key, starting with `age1`,
+          `ssh-ed25519 `, or `ssh-rsa `. When set, the command-line tool
           encrypts to it instead of presenting the identity file.
         '';
       };
@@ -81,12 +108,13 @@ in
     };
 
     extraEncryptionPubkeys = mkOption {
-      type = types.listOf (types.either types.path types.str);
+      type = types.listOf (types.either types.path publicKeyType);
       default = [ ];
       description = ''
         Public keys every shield is also encrypted to and that never
         decrypt, such as an offline backup key. A path or an absolute
-        string names a recipients file; any other string is a public key.
+        string names a recipients file; any other string must be a public
+        key, starting with `age1`, `ssh-ed25519 `, or `ssh-rsa `.
       '';
     };
 

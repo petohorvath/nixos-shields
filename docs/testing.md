@@ -35,10 +35,10 @@ The suites expect a Nix without the builtin. nix-unit reads `NIX_CONFIG`, so a s
 
 The unit suites:
 
-- `nixos.module` drives the option tree of [`nixos/module.nix`](../nixos/module.nix) through `evalModules`. It covers defaults, the attribute set form every master identity entry reads back as, including agenix-rekey's `age.rekey.masterIdentities` value, a relative string failing, `extraEncryptionPubkeys` reading back public keys and recipients files as given, wiring files from `dir`, a file given as an absolute string, a file name without the `.nix.age` suffix failing, `values` being read-only, and reading a value reaching `importShield`, which fails without the builtin.
+- `nixos.module` drives the option tree of [`nixos/module.nix`](../nixos/module.nix) through `evalModules`. It covers the defaults, and the attribute set form that every master identity entry reads back as, including agenix-rekey's `age.rekey.masterIdentities` value and a newline-terminated public key read through it. A master identity given as a relative string fails. Age, age plugin, `ssh-ed25519`, `ssh-rsa`, and newline-terminated public keys read back as given, both in `extraEncryptionPubkeys` and as a paired `pubkey`. Recipients files in `extraEncryptionPubkeys`, given as paths and absolute strings, read back as given too. An empty string, a relative string, and a string with another prefix fail in both places with the public-key message. For `files`, it covers wiring them from `dir`, a file given as an absolute string, and a file name without the `.nix.age` suffix failing. `values` is read-only, and reading a value reaches `importShield`, which fails without the builtin.
 - `packages.extra-builtins.compose` merges the kit's builtins, imported from source, with a consumer's extra builtins under nix-plugins' arguments and a fake `exec`. It covers the kit's builtins alone, entries merged beside `importShield` and receiving `exec`, and the failures, giving each entry's position, for an entry defining `importShield` and for two entries with one name defining one name.
 - `packages.extra-builtins.extra-builtins` imports the builtin file from source with a fake `exec` that returns its argv instead of running it. It covers the argv for paths and absolute strings, and the failures for an empty identity list, an identity list that is not a list or holds a relative string, and a shield file that is a relative string, has another suffix, or does not exist.
-- `import-shield` applies `lib/import-shield.nix` to that fake builtin. It covers the identity of every master identity entry form reaching the builtin alone, and the failure naming `lib.mkNix` without `extraBuiltins`, without `importShield`, and for a missing file.
+- `import-shield` applies `lib/import-shield.nix` to that fake builtin. It covers the identity of every master identity entry form, including a `null` `pubkey`, reaching the builtin alone; the entry-form failures, giving the entry's position, for identities that are not a list, an entry of another type, an entry without `identity`, an entry with an unknown attribute, and a `pubkey` that breaks the public-key rule; and the failure naming `lib.mkNix` without `extraBuiltins`, without `importShield`, for a missing file, and for each of those bad identities.
 - `mk-nix` checks `lib.mkNix`'s extra builtins against a real package set: a string that names no store path and an entry not in a list fail before the bundle is built.
 - `mk-manifest` checks `lib.mkManifest` directly for plain flakes: relative locations, identities outside the flake root staying absolute while shield files outside it fail, a relative identity string failing, the `identity` and `pubkey` entries it combines from configurations without duplicates, a `null` public key for a YubiKey stub and a binary identity under `tests/fixtures` that no entry pairs with one, the failure for one identity paired with different public keys, extra encryption pubkeys combined from configurations without duplicates, where recipients files inside the root become relative and those outside stay absolute, configurations without the shields module, and the removed `masterIdentities` and `files` arguments failing.
 
@@ -49,12 +49,15 @@ The integration suites:
 
 ## `build-cli`
 
-The check copies the [example consumer](../examples/consumer) into a writable directory and drives the packaged tool. It covers:
+The check copies the [example consumer](../examples/consumer) into a writable directory and drives the packaged tool. It asserts every refusal of the tool by its message, and covers:
 
+- the `--help` text, and the refusals that need no manifest: no command, an unknown command or option, an option without a value, `--json`, `--configuration`, or `--identity` on a command that does not take it, `edit` without an address or with two, `list`, `rekey`, or `clean` with one, and `--flake` naming a directory without `flake.nix`
+- a hand-written manifest whose shield file is absolute or leads out of the checkout through a symlink
+- refusals that leave every shield file untouched and never start the editor: `edit` without `EDITOR`, `edit` on a declared shield file that is a directory, `edit` with `TMPDIR` inside the checkout, `rekey` with a declared shield file missing, `rekey --identity` with an identity that does not exist, no master identity declared, a master identity without a paired public key that does not exist, and a recipients file that does not exist
 - text and JSON listings without a flake-scoped group, configuration filtering, and local directory selection
 - shield values reaching `alpha`'s ordinary options and a deploy-rs-shaped output, and `beta` failing with its missing shield file's location
 - one shield file declared by both configurations, readable through each after `edit` and `rekey`
-- unchanged and changed edits, creating a missing shield, editor failure, bare addresses failing as unknown, and temporary-file cleanup
+- unchanged and changed edits, creating a missing shield, editor failure and an editor removing the plaintext file, each leaving the shield file byte-identical, bare addresses failing as unknown, and temporary-file cleanup
 - encryption to all master identities, including one that only `alpha` declares, and rotation to a second identity verified through the wrapped Nix
 - a passphrase-protected identity paired with its public key in the manifest, which `edit` and `rekey` encrypt to without a prompt and whose key then opens every shield
 - `rekey` decrypting with every master identity when the first cannot open the shields
@@ -83,6 +86,8 @@ The check drives the decrypt script directly with a throwaway master identity an
 - a hit ignoring the primary identity variables
 - a failed decryption leaving no partial file
 - `--clean` removing the decrypt cache and accepting one already removed, and refusing a symlink and a directory containing the home directory, the current directory, or a directory given to it, each case tripping only its own refusal
+
+The script's refusal of a decrypt cache owned by another user stays untested, because the build sandbox cannot create a directory that another user owns.
 
 ## `build-wrapped-nix`
 

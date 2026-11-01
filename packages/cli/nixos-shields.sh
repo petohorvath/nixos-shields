@@ -7,10 +7,10 @@ die() {
 usage() {
   cat <<'USAGE'
 Usage: nixos-shields [--flake <directory>] <command>
-  list [--json] [--configuration <name>]
-  edit <address>                         Edit with $EDITOR
+  list [--json] [--configuration <name>]  List declared shields and their status
+  edit <address>                          Edit with $EDITOR
   rekey [--identity <file>]               Encrypt to all master identities
-  clean                                 Remove the user's decrypt cache
+  clean                                   Remove the user's decrypt cache
 USAGE
 }
 
@@ -194,7 +194,7 @@ if [[ $command_name == edit ]]; then
   address=${positional[1]}
   shield=$(jq -ce --arg address "$address" '
     map(select(.address == $address)) | if length == 1 then .[0] else empty end
-  ' <<<"$shields") || die "unknown address (or ambiguous declaration): $address"
+  ' <<<"$shields") || die "unknown address: $address"
   file=$(resolve_file "$(jq -r .file <<<"$shield")")
   [[ ! -e $file || -f $file ]] || die "not a regular shield file: $file"
   [[ -n ${EDITOR:-} ]] || die "set EDITOR to the editor command to run"
